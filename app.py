@@ -31,6 +31,14 @@ from api import api_v1_bp
 # of silently trusting that the file's presence means it's set up correctly.
 init_db()
 
+# Optional demo seeding for hosted deployments that have no shell access
+# (e.g. Render free tier). Set SEED_DEMO=true in the service environment and
+# restart to populate demo pharmacies, medicines and pharmacist logins. Safe
+# to leave on: seeding is idempotent (deterministic ids + ON CONFLICT DO NOTHING).
+if os.environ.get('SEED_DEMO', '').strip().lower() in ('1', 'true', 'yes'):
+    from database.seed_demo import seed as seed_demo
+    seed_demo()
+
 app = Flask(__name__)
 # Random key each launch is intentional on a desktop install: any previous
 # session cookie stops working, so the app always asks "who's using it?" on

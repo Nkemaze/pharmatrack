@@ -20,7 +20,14 @@ from datetime import date, timedelta
 
 from werkzeug.security import generate_password_hash
 
-from db import get_db_connection
+try:
+    from database.db import get_db_connection as _db_conn
+except ImportError:  # running as `python database/seed_demo.py`
+    from db import get_db_connection as _db_conn
+
+
+def _connection():
+    return _db_conn()
 
 # Fixed namespace so ids are stable across runs (idempotent seeding).
 _NS = uuid.UUID('3f1d5474-2df1-4f27-9d5b-9f9f1b0a7e6d')
@@ -167,7 +174,7 @@ def seed():
         'weekendOpen': '09:00', 'weekendClose': '19:00',
     }
 
-    conn = get_db_connection()
+    conn = _connection()
     try:
         for slug, name, address, city, lat, lng, phone, emergency, scale in pharma:
             _add_pharmacy(conn, slug, name, address, city, lat, lng, phone,
