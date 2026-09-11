@@ -221,6 +221,10 @@ __marimo__/
 # Local database - contains real/test pharmacy data, not source code
 pharmacy.db
 
+# Committed app releases: keep the release APK downloadable instead of
+# letting the generic downloads/ rule (PyInstaller section) ignore it.
+!static/downloads/
+
 # Python
 __pycache__/
 *.pyc
