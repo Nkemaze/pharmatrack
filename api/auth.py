@@ -1,8 +1,6 @@
 """JWT login and role checks shared by API endpoints."""
 
 from functools import wraps
-import threading
-import time
 
 from flask import jsonify, request
 from flask_jwt_extended import (
@@ -12,6 +10,7 @@ from flask_jwt_extended import (
 
 from database.queries import (
     authenticate_user, create_user, revoke_token, user_name_exists,
+    login_attempt_lockout, record_login_attempt, clear_login_attempts,
 )
 from api import api_v1_bp
 from api.validation import (
@@ -19,10 +18,6 @@ from api.validation import (
 )
 
 
-# This protects the local/single-server deployment. A multi-instance hosted
-# deployment should put rate limiting in a shared store or reverse proxy.
-_api_login_attempts = {}
-_api_login_lock = threading.Lock()
 API_MAX_LOGIN_ATTEMPTS = 5
 API_LOGIN_WINDOW_SECONDS = 60
 
@@ -37,29 +32,26 @@ def normalize_api_role(role):
     return 'pharmacy' if role == 'pharmacist' else role
 
 
+def get_api_pharmacy_id():
+    """The pharmacy_id from the current JWT, or None for unscoped/admin roles."""
+    return get_jwt().get('pharmacy_id')
+
+
 def _api_login_key():
     """Rate-limit API sign-in attempts by the calling IP address."""
     return request.remote_addr or 'unknown'
 
 
 def _remaining_login_lockout(key):
-    now = time.monotonic()
-    with _api_login_lock:
-        attempts = [t for t in _api_login_attempts.get(key, []) if now - t < API_LOGIN_WINDOW_SECONDS]
-        _api_login_attempts[key] = attempts
-        if len(attempts) < API_MAX_LOGIN_ATTEMPTS:
-            return 0
-        return max(1, int(API_LOGIN_WINDOW_SECONDS - (now - attempts[0])))
+    return login_attempt_lockout('api', key, API_MAX_LOGIN_ATTEMPTS, API_LOGIN_WINDOW_SECONDS)
 
 
 def _record_failed_api_login(key):
-    with _api_login_lock:
-        _api_login_attempts.setdefault(key, []).append(time.monotonic())
+    record_login_attempt('api', key, API_MAX_LOGIN_ATTEMPTS, API_LOGIN_WINDOW_SECONDS)
 
 
 def _clear_failed_api_logins(key):
-    with _api_login_lock:
-        _api_login_attempts.pop(key, None)
+    clear_login_attempts('api', key)
 
 
 def role_required(*allowed_roles):
@@ -104,12 +96,13 @@ def login():
 
     _clear_failed_api_logins(login_key)
 
-    claims = {'role': role, 'name': account['name']}
+    pharmacy_id = account.get('pharmacy_id')
+    claims = {'role': role, 'name': account['name'], 'pharmacy_id': pharmacy_id}
     access_token = create_access_token(identity=account['id'], additional_claims=claims)
     refresh_token = create_refresh_token(identity=account['id'], additional_claims=claims)
     return jsonify(
         access_token=access_token, refresh_token=refresh_token,
-        role=role, user_id=account['id'],
+        role=role, user_id=account['id'], pharmacy_id=pharmacy_id,
     )
 
 
@@ -120,7 +113,11 @@ def refresh():
     claims = get_jwt()
     access_token = create_access_token(
         identity=get_jwt_identity(),
-        additional_claims={'role': claims['role'], 'name': claims['name']},
+        additional_claims={
+            'role': claims.get('role'),
+            'name': claims.get('name'),
+            'pharmacy_id': claims.get('pharmacy_id'),
+        },
     )
     return jsonify(access_token=access_token)
 
@@ -143,10 +140,11 @@ def create_api_user():
     """Allow an admin to provision pharmacy or read-only API accounts."""
     try:
         data = get_json_object()
-        reject_unknown_fields(data, {'name', 'password', 'role'})
+        reject_unknown_fields(data, {'name', 'password', 'role', 'pharmacy_id'})
         name = required_string(data, 'name')
         password = required_string(data, 'password')
         requested_role = required_string(data, 'role')
+        pharmacy_id = data.get('pharmacy_id')
     except ValidationError as exc:
         return _api_error(str(exc))
 
@@ -160,5 +158,7 @@ def create_api_user():
     # The desktop application calls pharmacy staff "pharmacist". Keep that
     # database value so web and API login continue to use the same account.
     database_role = 'pharmacist' if requested_role == 'pharmacy' else 'user'
-    user_id = create_user(name=name, role=database_role, password=password)
-    return jsonify(user_id=user_id, name=name, role=requested_role), 201
+    user_id = create_user(name=name, role=database_role, password=password,
+                          pharmacy_id=pharmacy_id)
+    return jsonify(user_id=user_id, name=name, role=requested_role,
+                   pharmacy_id=pharmacy_id), 201

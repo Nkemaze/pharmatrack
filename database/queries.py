@@ -4,6 +4,7 @@ Keeps app.py focused on routing, not SQL.
 """
 
 from datetime import datetime, date
+import time
 from database.db import get_db_connection
 
 
@@ -12,8 +13,8 @@ def revoke_token(jti, token_type, user_id, expires_at):
     conn = get_db_connection()
     try:
         conn.execute(
-            """INSERT OR IGNORE INTO token_blocklist
-               (jti, token_type, user_id, expires_at) VALUES (?, ?, ?, ?)""",
+            """INSERT INTO token_blocklist (jti, token_type, user_id, expires_at)
+               VALUES (?, ?, ?, ?) ON CONFLICT(jti) DO NOTHING""",
             (jti, token_type, user_id, expires_at),
         )
         conn.commit()
@@ -33,41 +34,146 @@ def is_token_revoked(jti):
         conn.close()
 
 
-def get_product_list(search=None):
+def get_pharmacies():
+    """All pharmacy tenants, for admin management and public discovery."""
+    conn = get_db_connection()
+    try:
+        rows = conn.execute("SELECT * FROM pharmacy ORDER BY name").fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_public_pharmacies():
+    """Active pharmacies only, shaped for the customer app (operating
+    hours surfaced as a parsed object, no admin fields)."""
+    from json import loads
+    conn = get_db_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM pharmacy WHERE status = 'active' ORDER BY name"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r, opening_hours=_parse_hours(r["opening_hours"])) for r in rows]
+
+
+def get_public_pharmacy(pharmacy_id):
+    """One active pharmacy shaped for the customer app, or None."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM pharmacy WHERE id = ? AND status = 'active'",
+            (pharmacy_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    result = dict(row)
+    result["opening_hours"] = _parse_hours(result["opening_hours"])
+    return result
+
+
+def _parse_hours(raw):
+    """opening_hours is stored as JSON text; surface it as a dict (or {})."""
+    from json import loads
+    if not raw:
+        return {}
+    try:
+        return loads(raw)
+    except (TypeError, ValueError):
+        return {}
+
+
+def get_pharmacy(pharmacy_id):
+    """One pharmacy tenant, or None."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute("SELECT * FROM pharmacy WHERE id = ?", (pharmacy_id,)).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def create_pharmacy(name, address=None, city=None, phone=None,
+                    emergency_phone=None, latitude=None, longitude=None,
+                    opening_hours=None, status='active'):
+    """Registers a new pharmacy tenant (used by the hosted self-registration
+    flow, and by tests). Returns the new pharmacy id."""
+    import uuid
+    conn = get_db_connection()
+    try:
+        pharmacy_id = str(uuid.uuid4())
+        conn.execute(
+            """INSERT INTO pharmacy
+               (id, name, address, city, phone, emergency_phone, latitude,
+                longitude, opening_hours, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (pharmacy_id, name, address, city, phone, emergency_phone,
+             latitude, longitude, opening_hours, status)
+        )
+        conn.commit()
+        return pharmacy_id
+    finally:
+        conn.close()
+
+
+def update_pharmacy(pharmacy_id, **fields):
+    """Updates the mutable profile fields of a pharmacy tenant. Only keys
+    present in fields are changed."""
+    allowed = {"name", "address", "city", "phone", "emergency_phone",
+               "latitude", "longitude", "opening_hours", "status"}
+    sets = [f"{k} = ?" for k in fields if k in allowed]
+    if not sets:
+        return
+    values = [fields[k] for k in fields if k in allowed] + [pharmacy_id]
+    conn = get_db_connection()
+    try:
+        conn.execute(f"UPDATE pharmacy SET {', '.join(sets)} WHERE id = ?", values)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_product_list(search=None, pharmacy_id=None):
     """
     Returns one row per product with:
     - current_stock: computed by summing all movements across all its batches
     - expiry_status: 'Fine' / 'Expiring Soon' / 'Expired', based on the nearest batch expiry
 
     If search is given, only products whose name or a batch number contains
-    that text (case-insensitive) are returned.
+    that text (case-insensitive) are returned. If pharmacy_id is given, only
+    products owned by that tenant are returned.
     """
     conn = get_db_connection()
     cur = conn.cursor()
+    where = ""
+    params = ()
+    if pharmacy_id:
+        where = " WHERE p.pharmacy_id = ?"
+        params = (pharmacy_id,)
     if search:
         like_term = f"%{search}%"
-        cur.execute("""
-            SELECT p.id, p.name, p.category, p.dosage_form,
-                   COALESCE(SUM(sm.quantity), 0) AS current_stock,
-                   MIN(pb.expiry_date) AS nearest_expiry
-            FROM product p
-            LEFT JOIN product_batch pb ON pb.product_id = p.id
-            LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
-            WHERE p.name LIKE ? OR pb.batch_number LIKE ?
-            GROUP BY p.id
-            ORDER BY p.name
-        """, (like_term, like_term))
-    else:
-        cur.execute("""
-            SELECT p.id, p.name, p.category, p.dosage_form,
-                   COALESCE(SUM(sm.quantity), 0) AS current_stock,
-                   MIN(pb.expiry_date) AS nearest_expiry
-            FROM product p
-            LEFT JOIN product_batch pb ON pb.product_id = p.id
-            LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
-            GROUP BY p.id
-            ORDER BY p.name
-        """)
+        if where:
+            where += " AND (p.name LIKE ? OR pb.batch_number LIKE ?)"
+            params += (like_term, like_term)
+        else:
+            where = " WHERE p.name LIKE ? OR pb.batch_number LIKE ?"
+            params = (like_term, like_term)
+    cur.execute(f"""
+        SELECT p.id, p.pharmacy_id, p.name, p.category, p.dosage_form,
+               ph.name AS pharmacy_name,
+               COALESCE(SUM(sm.quantity), 0) AS current_stock,
+               MIN(pb.expiry_date) AS nearest_expiry
+        FROM product p
+        JOIN pharmacy ph ON ph.id = p.pharmacy_id
+        LEFT JOIN product_batch pb ON pb.product_id = p.id
+        LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
+        {where}
+        GROUP BY p.id, ph.name
+        ORDER BY p.name
+    """, params)
     rows = cur.fetchall()
     conn.close()
 
@@ -86,6 +192,8 @@ def get_product_list(search=None):
 
         products.append({
             "id": row["id"],
+            "pharmacy_id": row["pharmacy_id"],
+            "pharmacy_name": row["pharmacy_name"] or "—",
             "name": row["name"],
             "category": row["category"] or "—",
             "dosage_form": row["dosage_form"] or "—",
@@ -95,54 +203,119 @@ def get_product_list(search=None):
         })
     return products
 
-def get_public_inventory(search=None):
+def get_public_inventory(search=None, pharmacy_id=None):
     """Returns safe product information for the public/read-only API.
 
     Controlled substances and exact stock quantities are deliberately
     excluded - only whether a product is in stock at all. Keep this
     separate from get_product_list so callers cannot accidentally expose
     restricted fields by filtering a richer response.
+
+    Optionally scoped to one pharmacy; otherwise spans every active tenant.
     """
     conn = get_db_connection()
     cur = conn.cursor()
     base_query = """
-        SELECT p.id, p.name, p.category, p.strength, p.dosage_form,
-               p.requires_prescription,
+        SELECT p.id, p.pharmacy_id, ph.name AS pharmacy_name,
+               p.name, p.category, p.strength, p.dosage_form,
+               p.requires_prescription, p.price_per_unit, p.price_per_packet,
+               p.packet_size, p.unit_label, p.image_url,
                COALESCE(SUM(sm.quantity), 0) AS current_stock
         FROM product p
+        JOIN pharmacy ph ON ph.id = p.pharmacy_id
         LEFT JOIN product_batch pb ON pb.product_id = p.id
         LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
-        WHERE p.is_controlled = 0
+        WHERE p.is_controlled = 0 AND ph.status = 'active'
     """
+    filters = []
+    params = ()
+    if pharmacy_id:
+        filters.append("p.pharmacy_id = ?")
+        params += (pharmacy_id,)
     if search:
-        cur.execute(base_query + " AND p.name LIKE ? GROUP BY p.id ORDER BY p.name", (f"%{search}%",))
-    else:
-        cur.execute(base_query + " GROUP BY p.id ORDER BY p.name", ())
+        like_term = f"%{search}%"
+        filters.append("p.name LIKE ?")
+        params += (like_term,)
+    if filters:
+        base_query += " AND " + " AND ".join(filters)
+    cur.execute(base_query + " GROUP BY p.id, ph.name ORDER BY p.name", params)
     rows = cur.fetchall()
     conn.close()
     return [
         {
             "id": row["id"],
+            "pharmacy_id": row["pharmacy_id"],
+            "pharmacy_name": row["pharmacy_name"] or "—",
             "name": row["name"],
             "category": row["category"] or "—",
             "strength": row["strength"] or "—",
             "dosage_form": row["dosage_form"] or "—",
             "requires_prescription": bool(row["requires_prescription"]),
+            "price_per_unit": row["price_per_unit"],
+            "price_per_packet": row["price_per_packet"],
+            "packet_size": row["packet_size"],
+            "unit_label": row["unit_label"] or "unit",
+            "image_url": row["image_url"],
             "in_stock": row["current_stock"] > 0,
         }
         for row in rows
     ]
 
-def get_product_detail(product_id):
+
+def get_popular_products(limit=50):
+    """An aggregate view across active pharmacies, powering the customer
+    app's 'Popular Medicines' list: for each drug name, the cheapest unit
+    price available, how many pharmacies carry it, and whether any has it
+    in stock. Controlled substances are excluded."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sq.name, MIN(sq.price_per_unit) AS cheapest_price,
+               COUNT(DISTINCT sq.pharmacy_id) AS pharmacy_count,
+               MAX(sq.in_stock_flag) AS any_in_stock
+        FROM (
+            SELECT p.name, p.price_per_unit, p.pharmacy_id,
+                   CASE WHEN COALESCE(SUM(sm.quantity), 0) > 0 THEN 1 ELSE 0 END AS in_stock_flag
+            FROM product p
+            JOIN pharmacy ph ON ph.id = p.pharmacy_id
+            LEFT JOIN product_batch pb ON pb.product_id = p.id
+            LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
+            WHERE p.is_controlled = 0 AND ph.status = 'active'
+              AND p.price_per_unit IS NOT NULL
+            GROUP BY p.id
+        ) sq
+        GROUP BY sq.name
+        ORDER BY COUNT(DISTINCT sq.pharmacy_id) DESC, sq.name ASC
+        LIMIT ?
+    """, (limit,))
+    rows = cur.fetchall()
+    conn.close()
+    return [
+        {
+            "name": r["name"],
+            "form_label": None,
+            "cheapest_price": r["cheapest_price"],
+            "pharmacy_count": r["pharmacy_count"],
+            "any_in_stock": bool(r["any_in_stock"]),
+        }
+        for r in rows
+    ]
+
+def get_product_detail(product_id, pharmacy_id=None):
     """
     Returns full detail for one product: its info, every batch with
     computed remaining quantity + expiry status, and its 10 most recent
-    stock movements. Returns None if the product doesn't exist.
+    stock movements. Returns None if the product doesn't exist (or isn't
+    owned by the given pharmacy).
     """
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM product WHERE id = ?", (product_id,))
+    if pharmacy_id:
+        cur.execute("SELECT * FROM product WHERE id = ? AND pharmacy_id = ?",
+                    (product_id, pharmacy_id))
+    else:
+        cur.execute("SELECT * FROM product WHERE id = ?", (product_id,))
     product_row = cur.fetchone()
     if product_row is None:
         conn.close()
@@ -218,7 +391,9 @@ def get_product_by_barcode(barcode):
 def create_product(name, category, strength, dosage_form, barcode,
                     requires_prescription, is_controlled,
                     batch_number, expiry_date, initial_quantity,
-                    performed_by_user_id=None):
+                    performed_by_user_id=None, pharmacy_id=None,
+                    price_per_unit=None, price_per_packet=None,
+                    packet_size=None, unit_label=None, image_url=None):
     """
     Creates a product, its first batch, and the initial 'receipt' movement
     that gives it starting stock — all in one transaction, so you never end
@@ -231,12 +406,23 @@ def create_product(name, category, strength, dosage_form, barcode,
     cur = conn.cursor()
     try:
         product_id = str(uuid.uuid4())
+        # Legacy/single-tenant calls don't pass a pharmacy; fall back to the
+        # first active one so rows always land inside a tenant.
+        if pharmacy_id is None:
+            row = cur.execute(
+                "SELECT id FROM pharmacy WHERE status = 'active' ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+            pharmacy_id = row["id"] if row else None
         cur.execute(
             """INSERT INTO product
-               (id, name, category, strength, dosage_form, barcode, requires_prescription, is_controlled)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (product_id, name, category, strength, dosage_form, barcode or None,
-             1 if requires_prescription else 0, 1 if is_controlled else 0)
+               (id, pharmacy_id, name, category, strength, dosage_form, barcode,
+                requires_prescription, is_controlled, price_per_unit,
+                price_per_packet, packet_size, unit_label, image_url)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (product_id, pharmacy_id, name, category, strength, dosage_form,
+             barcode or None, 1 if requires_prescription else 0,
+             1 if is_controlled else 0, price_per_unit, price_per_packet,
+             packet_size, unit_label, image_url)
         )
 
         batch_id = str(uuid.uuid4())
@@ -264,30 +450,46 @@ def create_product(name, category, strength, dosage_form, barcode,
         conn.close()
 
 
-def get_products_for_dropdown():
+def get_products_for_dropdown(pharmacy_id=None):
     """Minimal product list for the Record Movement product selector."""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, name, is_controlled FROM product ORDER BY name")
+    if pharmacy_id:
+        cur.execute("SELECT id, name, is_controlled FROM product WHERE pharmacy_id = ? ORDER BY name",
+                    (pharmacy_id,))
+    else:
+        cur.execute("SELECT id, name, is_controlled FROM product ORDER BY name")
     rows = cur.fetchall()
     conn.close()
     return [{"id": r["id"], "name": r["name"], "is_controlled": bool(r["is_controlled"])} for r in rows]
 
 
-def get_batches_for_product(product_id):
+def get_batches_for_product(product_id, pharmacy_id=None):
     """Batches for one product, with current remaining quantity, for the
     batch dropdown that populates after a product is selected."""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT pb.id, pb.batch_number, pb.expiry_date,
-               COALESCE(SUM(sm.quantity), 0) AS quantity_remaining
-        FROM product_batch pb
-        LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
-        WHERE pb.product_id = ?
-        GROUP BY pb.id
-        ORDER BY pb.expiry_date ASC
-    """, (product_id,))
+    if pharmacy_id:
+        cur.execute("""
+            SELECT pb.id, pb.batch_number, pb.expiry_date,
+                   COALESCE(SUM(sm.quantity), 0) AS quantity_remaining
+            FROM product_batch pb
+            JOIN product p ON p.id = pb.product_id
+            LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
+            WHERE pb.product_id = ? AND p.pharmacy_id = ?
+            GROUP BY pb.id
+            ORDER BY pb.expiry_date ASC
+        """, (product_id, pharmacy_id))
+    else:
+        cur.execute("""
+            SELECT pb.id, pb.batch_number, pb.expiry_date,
+                   COALESCE(SUM(sm.quantity), 0) AS quantity_remaining
+            FROM product_batch pb
+            LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
+            WHERE pb.product_id = ?
+            GROUP BY pb.id
+            ORDER BY pb.expiry_date ASC
+        """, (product_id,))
     rows = cur.fetchall()
     conn.close()
     return [
@@ -383,6 +585,21 @@ def get_product_id_for_batch(batch_id):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT product_id FROM product_batch WHERE id = ?", (batch_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row["product_id"] if row else None
+
+
+def get_product_id_for_batch_owned_by(batch_id, pharmacy_id):
+    """Like get_product_id_for_batch, but only if the batch's product belongs
+    to the given pharmacy (used to scope API movements to a tenant)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT pb.product_id FROM product_batch pb
+        JOIN product p ON p.id = pb.product_id
+        WHERE pb.id = ? AND p.pharmacy_id = ?
+    """, (batch_id, pharmacy_id))
     row = cur.fetchone()
     conn.close()
     return row["product_id"] if row else None
@@ -544,7 +761,9 @@ def get_dashboard_data():
 
 
 def update_product(product_id, name, category, strength, dosage_form, barcode,
-                    requires_prescription, is_controlled):
+                    requires_prescription, is_controlled,
+                    price_per_unit=None, price_per_packet=None,
+                    packet_size=None, unit_label=None, image_url=None):
     """Updates a product's own fields. Does NOT touch batches or stock -
     those only ever change through Record Movement, by design."""
     conn = get_db_connection()
@@ -552,10 +771,14 @@ def update_product(product_id, name, category, strength, dosage_form, barcode,
     cur.execute(
         """UPDATE product
            SET name = ?, category = ?, strength = ?, dosage_form = ?, barcode = ?,
-               requires_prescription = ?, is_controlled = ?
+               requires_prescription = ?, is_controlled = ?,
+               price_per_unit = ?, price_per_packet = ?,
+               packet_size = ?, unit_label = ?, image_url = ?
            WHERE id = ?""",
         (name, category, strength, dosage_form, barcode or None,
-         1 if requires_prescription else 0, 1 if is_controlled else 0, product_id)
+         1 if requires_prescription else 0, 1 if is_controlled else 0,
+         price_per_unit, price_per_packet, packet_size, unit_label, image_url,
+         product_id)
     )
     conn.commit()
     conn.close()
@@ -594,7 +817,7 @@ def get_users():
     """All users, for the admin's account management page (no password data)."""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, name, role FROM user ORDER BY name")
+    cur.execute('SELECT id, name, role FROM "user" ORDER BY name')
     rows = cur.fetchall()
     conn.close()
     return [{"id": r["id"], "name": r["name"], "role": r["role"]} for r in rows]
@@ -603,12 +826,13 @@ def get_users():
 def get_user_by_id(user_id):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, name, role FROM user WHERE id = ?", (user_id,))
+    cur.execute('SELECT id, name, role, pharmacy_id, status FROM "user" WHERE id = ?', (user_id,))
     row = cur.fetchone()
     conn.close()
     if row is None:
         return None
-    return {"id": row["id"], "name": row["name"], "role": row["role"]}
+    return {"id": row["id"], "name": row["name"], "role": row["role"],
+            "pharmacy_id": row["pharmacy_id"], "status": row["status"]}
 
 
 def admin_exists():
@@ -617,7 +841,7 @@ def admin_exists():
     when this returns False."""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM user WHERE role = 'admin' LIMIT 1")
+    cur.execute("SELECT 1 FROM \"user\" WHERE role = 'admin' LIMIT 1")
     row = cur.fetchone()
     conn.close()
     return row is not None
@@ -628,14 +852,85 @@ def user_name_exists(name):
     - login looks users up by name, so names must be unique."""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM user WHERE name = ?", (name,))
+    cur.execute('SELECT 1 FROM "user" WHERE name = ?', (name,))
     row = cur.fetchone()
     conn.close()
     return row is not None
 
 
-def create_user(name, role, password):
-    """Create an account with a supported role and hashed password."""
+def login_attempt_state(scope, key):
+    """Returns (count, first_attempt_at) for a login-ratelimit key, or
+    (0, 0) when the key has no recorded attempts."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT count, first_attempt_at FROM login_attempt WHERE scope = ? AND key = ?",
+            (scope, key),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return (0, 0)
+    return (row["count"], row["first_attempt_at"])
+
+
+def record_login_attempt(scope, key, max_attempts, window_seconds):
+    """
+    Records one failed login for a ratelimit key ('web' by username,
+    'api' by IP). When the window has fully elapsed since the recorded
+    first attempt, the counter restarts at 1; otherwise it increments.
+    The caller checks login_attempt_lockout() before this would matter.
+    """
+    now = int(time.time())
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT count, first_attempt_at FROM login_attempt WHERE scope = ? AND key = ?",
+            (scope, key),
+        ).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO login_attempt (scope, key, count, first_attempt_at) VALUES (?, ?, 1, ?)",
+                (scope, key, now),
+            )
+        elif now - row["first_attempt_at"] >= window_seconds:
+            conn.execute(
+                "UPDATE login_attempt SET count = 1, first_attempt_at = ? WHERE scope = ? AND key = ?",
+                (now, scope, key),
+            )
+        else:
+            conn.execute(
+                "UPDATE login_attempt SET count = count + 1 WHERE scope = ? AND key = ?",
+                (scope, key),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def login_attempt_lockout(scope, key, max_attempts, window_seconds):
+    """Seconds remaining in a lockout for a key, or 0 if it may try again."""
+    count, first_attempt_at = login_attempt_state(scope, key)
+    if count < max_attempts:
+        return 0
+    remaining = int(window_seconds - (time.time() - first_attempt_at))
+    return remaining if remaining > 0 else 0
+
+
+def clear_login_attempts(scope, key):
+    """Resets a key after a successful login."""
+    conn = get_db_connection()
+    try:
+        conn.execute("DELETE FROM login_attempt WHERE scope = ? AND key = ?", (scope, key))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def create_user(name, role, password, pharmacy_id=None):
+    """Create an account with a supported role and hashed password. When no
+    pharmacy is specified (desktop/single-tenant use), the account is homed
+    in the first active pharmacy."""
     import uuid
     from werkzeug.security import generate_password_hash
 
@@ -649,10 +944,15 @@ def create_user(name, role, password):
 
     conn = get_db_connection()
     cur = conn.cursor()
+    if pharmacy_id is None:
+        row = cur.execute(
+            "SELECT id FROM pharmacy WHERE status = 'active' ORDER BY created_at ASC LIMIT 1"
+        ).fetchone()
+        pharmacy_id = row["id"] if row else None
     user_id = str(uuid.uuid4())
     cur.execute(
-        "INSERT INTO user (id, name, role, password_hash) VALUES (?, ?, ?, ?)",
-        (user_id, name, role, generate_password_hash(password))
+        "INSERT INTO \"user\" (id, name, role, password_hash, pharmacy_id) VALUES (?, ?, ?, ?, ?)",
+        (user_id, name, role, generate_password_hash(password), pharmacy_id)
     )
     conn.commit()
     conn.close()
@@ -662,16 +962,19 @@ def create_user(name, role, password):
 def authenticate_user(name, password):
     """
     Checks a login attempt against the stored password hash.
-    Returns the user dict on success, or None on failure - the caller
-    should show the same generic error either way (wrong name, or right
-    name/wrong password), so a login attempt can't be used to discover
-    which usernames exist.
+    Returns the user dict (including pharmacy_id and status) on success,
+    or None on failure - the caller should show the same generic error
+    either way (wrong name, or right name/wrong password), so a login
+    attempt can't be used to discover which usernames exist.
     """
     from werkzeug.security import check_password_hash
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, name, role, password_hash FROM user WHERE name = ?", (name,))
+    cur.execute(
+        'SELECT id, name, role, password_hash, pharmacy_id, status FROM "user" WHERE name = ?',
+        (name,)
+    )
     row = cur.fetchone()
     conn.close()
 
@@ -679,13 +982,14 @@ def authenticate_user(name, password):
         return None
     if not check_password_hash(row["password_hash"], password):
         return None
-    return {"id": row["id"], "name": row["name"], "role": row["role"]}
+    return {"id": row["id"], "name": row["name"], "role": row["role"],
+            "pharmacy_id": row["pharmacy_id"], "status": row["status"]}
 
 
 def delete_user(user_id):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM user WHERE id = ?", (user_id,))
+    cur.execute('DELETE FROM "user" WHERE id = ?', (user_id,))
     conn.commit()
     conn.close()
 

@@ -96,13 +96,30 @@ Aligned with the new `pharmacy` table:
 
 ### 3.4 PostgreSQL (for production hosting)
 
-SQLite's single write-lock file will not survive multiple pharmacies/users on a public server.
+Implemented via **option 3**: `database/db.py` remains the abstraction; when the
+`DATABASE_URL` env var is set, `get_db_connection()` returns a `PGConnection`
+(from `database/pg_adapter.py`) instead of a plain `sqlite3.Connection`.  The
+adapter transparently translates SQLite-flavoured statements (`?` placeholders,
+`datetime('now')`, `LIKE` → `ILIKE`, `BEGIN IMMEDIATE` → no-op) so the rest
+of the query layer (`queries.py`, `api/`, `app.py`) remains backend-agnostic.
 
-- Port all queries in `database/queries.py` to use a pool (e.g. `psycopg` + a small connection helper).
-- Or use SQLAlchemy to wrap both engines.
-- Or: keep `database/db.py` as an abstraction and add a Postgres implementation.
-- Enable foreign keys per connection, same as today (`PRAGMA foreign_keys = ON` → Postgres enforces by default).
-- Schedule the SQLite → Postgres data migration for existing installs.
+Other portability changes applied directly in the source SQL:
+- `"user"` is double-quoted everywhere (`user` is a Postgres reserved word;
+  SQLite treats `"user"` as the same bare identifier).
+- `INSERT OR IGNORE INTO …` replaced with portable `INSERT INTO … ON
+  CONFLICT(col) DO NOTHING` (SQLite ≥3.24 and Postgres both accept this).
+- `expires_at` and `first_attempt_at` columns changed to `BIGINT` in
+  `schema.sql` (SQLite's `INTEGER` is already 64-bit; Postgres `INTEGER` is
+  32-bit int4, which overflows near 2038 for unix-second timestamps).
+- `GROUP BY` clauses now include all non-aggregated selected columns
+  (`GROUP BY p.id, ph.name`) — required by Postgres.
+
+Postgres schema is created by `init_db()` reading the same `schema.sql`;
+the adapter strips `--` comments before splitting on `;` to avoid
+spurious statement boundaries.
+
+Tests: 9 SQLite unit tests all pass. Full query-layer smoke test verified
+against a local PostgreSQL 17 Docker container (`pharma_pg`, port 5433).
 
 ---
 
@@ -418,35 +435,36 @@ Remove Firebase; add config/base URL; rewrite `PharmacyService`; adapt `Drug`, `
 
 ## 11. TODO Checklist
 
-- [ ] **Phase 1 — Schema (PharmaTrack)**
-  - [ ] Add `pharmacy` table to `database/schema.sql`
-  - [ ] Add `pharmacy_id`, `price_per_unit`, `price_per_packet`, `packet_size`, `unit_label`, `image_url` columns to `product` table
-  - [ ] Write migrations in `database/db.py:_run_migrations()` for the new columns/table
-  - [ ] Seed a default pharmacy and assign existing products to it
+- [x] **Phase 1 — Schema (PharmaTrack)**
+  - [x] Add `pharmacy` table to `database/schema.sql`
+  - [x] Add `pharmacy_id`, `price_per_unit`, `price_per_packet`, `packet_size`, `unit_label`, `image_url` columns to `product` table
+  - [x] Write migrations in `database/db.py:_run_migrations()` for the new columns/table
+  - [x] Seed a default pharmacy and assign existing products to it
 
-- [ ] **Phase 2 — API (PharmaTrack)**
-  - [ ] Add `pharmacy_id` to JWT claims (`api/auth.py`)
-  - [ ] Scope all existing product/movement/report endpoints by `pharmacy_id`
-  - [ ] Add `GET /api/v1/pharmacies` (list active pharmacies, public)
-  - [ ] Add `GET /api/v1/pharmacies/<id>` (single pharmacy, public)
-  - [ ] Add `GET /api/v1/pharmacies/<id>/products` (pharmacy's product list, public)
-  - [ ] Add `GET /api/v1/products/search?q=` (cross-pharmacy search, public)
-  - [ ] Add `GET /api/v1/products/popular` (popular medicines aggregation, public)
-  - [ ] Extend `GET /api/v1/products` to include prices, images, and pharmacy name
+- [x] **Phase 2 — API (PharmaTrack)**
+  - [x] Add `pharmacy_id` to JWT claims (`api/auth.py`)
+  - [x] Scope all existing product/movement/report endpoints by `pharmacy_id`
+  - [x] Add `GET /api/v1/pharmacies` (list active pharmacies, public)
+  - [x] Add `GET /api/v1/pharmacies/<id>` (single pharmacy, public)
+  - [x] Add `GET /api/v1/pharmacies/<id>/products` (pharmacy's product list, public)
+  - [x] Add `GET /api/v1/products/search?q=` (cross-pharmacy search, public)
+  - [x] Add `GET /api/v1/products/popular` (popular medicines aggregation, public)
+  - [x] Extend `GET /api/v1/products` to include prices, images, and pharmacy name
 
-- [ ] **Phase 3 — Web app (PharmaTrack)**
-  - [ ] Update Settings page to write the new `pharmacy` table fields (city, phone, hours, status)
-  - [ ] Set `SECRET_KEY` from env var instead of `os.urandom(32)`
-  - [ ] Add Flask-CORS with configurable allowed origins
-  - [ ] Move login rate limiter from in-memory to database-backed
+- [x] **Phase 3 — Web app (PharmaTrack)**
+  - [x] Update Settings page to write the new `pharmacy` table fields (city, phone, hours, status)
+  - [x] Set `SECRET_KEY` from env var instead of `os.urandom(32)`
+  - [x] Add Flask-CORS with configurable allowed origins
+  - [x] Move login rate limiter from in-memory to database-backed
 
-- [ ] **Phase 4 — Hosting / Deployment (Render)**
-  - [ ] Create `render.yaml` Blueprint (web service + managed Postgres + env vars)
-  - [ ] Create `.env.example` with all required production variables
-  - [ ] Add `gunicorn`, `psycopg[binary]`, `flask-cors` to `requirements.txt`
-  - [ ] Port all SQLite queries to PostgreSQL-compatible SQL (`ILIKE` etc.)
-  - [ ] Add `GET /download` route + landing page for APK download
-  - [ ] Add `GET /apk/latest` route serving the latest APK from `static/`
+- [x] **Phase 4 — Hosting / Deployment (Render)**
+  - [x] Create `render.yaml` Blueprint (web service + managed Postgres + env vars)
+  - [x] Create `.env.example` with all required production variables
+  - [x] Add `gunicorn`, `psycopg[binary]`, `flask-cors` to `requirements.txt`
+  - [x] Port all SQLite queries to PostgreSQL-compatible SQL (`ILIKE` etc.)
+  - [x] Add `GET /download` route + landing page for APK download
+  - [x] Add `GET /apk/latest` route serving the latest APK from `static/`
+  - [x] Add `GET /api/v1/health` (Render health check)
   - [ ] Set `PHARMATRACK_ENV=production`, `JWT_SECRET_KEY`, `SECRET_KEY`, `CORS_ORIGINS` in Render env
   - [ ] Deploy and verify UI + API + Postgres connection on Render
 

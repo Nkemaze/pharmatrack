@@ -4,12 +4,14 @@ from flask import jsonify, request
 from flask_jwt_extended import get_jwt_identity
 
 from api import api_v1_bp
-from api.auth import _api_error, role_required
+from api.auth import _api_error, get_api_pharmacy_id, role_required
 from api.validation import (
     ValidationError, get_json_object, integer, optional_string,
     reject_unknown_fields, required_string,
 )
-from database.queries import create_movement, get_product_id_for_batch
+from database.queries import (
+    create_movement, get_product_id_for_batch, get_product_id_for_batch_owned_by,
+)
 
 
 @api_v1_bp.post('/movements')
@@ -31,8 +33,16 @@ def add_movement():
             return _api_error('adjustment_direction must be add or remove for an adjustment.')
         if movement_type != 'adjustment' and adjustment_direction is not None:
             return _api_error('adjustment_direction is only allowed for an adjustment.')
-        if get_product_id_for_batch(batch_id) is None:
+
+        # An admin may record movements from any pharmacy (no JWT pharmacy
+        # scope). A pharmacy-scoped account can only touch its own batches.
+        pharmacy_id = get_api_pharmacy_id()
+        if pharmacy_id:
+            if get_product_id_for_batch_owned_by(batch_id, pharmacy_id) is None:
+                return _api_error('Product batch not found.', 404)
+        elif get_product_id_for_batch(batch_id) is None:
             return _api_error('Product batch not found.', 404)
+
         movement_id = create_movement(
             product_batch_id=batch_id, movement_type=movement_type,
             quantity=integer(data, 'quantity', minimum=1),

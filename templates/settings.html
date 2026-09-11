@@ -15,15 +15,40 @@
             <input
                 class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
                 type="text" name="pharmacy_name" value="{{ pharmacy_name }}">
-            <p class="text-body-sm text-on-surface-variant">Shown across the app (not yet wired into every screen —
-                currently used for reference only).</p>
+            <p class="text-body-sm text-on-surface-variant">Shown across the app and on the public customer listing.
+            </p>
         </div>
 
-        <div class="space-y-2">
-            <label class="block font-label-bold text-label-bold text-on-surface">Pharmacy Address</label>
-            <input
-                class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                type="text" name="pharmacy_address" value="{{ pharmacy_address }}">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+                <label class="block font-label-bold text-label-bold text-on-surface">Pharmacy Address</label>
+                <input
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                    type="text" name="pharmacy_address" value="{{ pharmacy_address }}">
+            </div>
+
+            <div class="space-y-2">
+                <label class="block font-label-bold text-label-bold text-on-surface">City</label>
+                <input
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                    type="text" name="pharmacy_city" value="{{ pharmacy_city }}">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+                <label class="block font-label-bold text-label-bold text-on-surface">Phone Number</label>
+                <input
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                    type="tel" name="pharmacy_phone" value="{{ pharmacy_phone }}">
+            </div>
+
+            <div class="space-y-2">
+                <label class="block font-label-bold text-label-bold text-on-surface">Emergency Phone</label>
+                <input
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                    type="tel" name="pharmacy_emergency_phone" value="{{ pharmacy_emergency_phone }}">
+            </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -40,6 +65,52 @@
                     class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
                     type="text" name="pharmacy_longitude" value="{{ pharmacy_longitude }}">
             </div>
+        </div>
+
+        <div class="space-y-2">
+            <label class="block font-label-bold text-label-bold text-on-surface">Operating Hours</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="block text-body-sm text-on-surface-variant">Weekday Open (24h format, e.g. 08:00)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="text" name="hours_weekday_open" placeholder="08:00" value="{{ hours_weekday_open }}">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-body-sm text-on-surface-variant">Weekday Close (24h format)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="text" name="hours_weekday_close" placeholder="20:00" value="{{ hours_weekday_close }}">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-body-sm text-on-surface-variant">Weekend Open (24h format)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="text" name="hours_weekend_open" placeholder="08:00" value="{{ hours_weekend_open }}">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-body-sm text-on-surface-variant">Weekend Close (24h format)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="text" name="hours_weekend_close" placeholder="20:00" value="{{ hours_weekend_close }}">
+                </div>
+            </div>
+            <p class="text-body-sm text-on-surface-variant">Used by the customer app to show Open/Closed. Leave blank
+                for unknown hours.</p>
+        </div>
+
+        <div class="space-y-2">
+            <label class="block font-label-bold text-label-bold text-on-surface">Pharmacy Status</label>
+            <select
+                class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                name="pharmacy_status">
+                <option value="active" {% if pharmacy_status == 'active' %}selected{% endif %}>Active (listed for
+                    customers)</option>
+                <option value="suspended" {% if pharmacy_status == 'suspended' %}selected{% endif %}>Suspended (hidden
+                    from customers)</option>
+            </select>
+            <p class="text-body-sm text-on-surface-variant">Suspended pharmacies are excluded from the public customer
+                API.</p>
         </div>
 
         <div class="space-y-2">

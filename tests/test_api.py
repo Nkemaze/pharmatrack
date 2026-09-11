@@ -14,7 +14,7 @@ os.environ.pop("PHARMATRACK_ENV", None)
 from api import auth
 from app import app
 from database.db import get_db_connection
-from database.queries import create_user
+from database.queries import create_user, create_pharmacy
 
 
 class ApiTestCase(unittest.TestCase):
@@ -24,13 +24,12 @@ class ApiTestCase(unittest.TestCase):
         self.client = app.test_client()
         conn = get_db_connection()
         try:
-            for table in ("token_blocklist", "loss_report", "stock_movement", "product_batch", "product", "user"):
+            for table in ("token_blocklist", "login_attempt", "loss_report", "stock_movement", "product_batch", "product", "user"):
                 conn.execute(f"DELETE FROM {table}")
             conn.commit()
         finally:
             conn.close()
 
-        auth._api_login_attempts.clear()
         create_user("Admin", "admin", self.password)
         create_user("Pharmacist", "pharmacist", self.password)
         create_user("Public User", "user", self.password)
@@ -179,6 +178,92 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["role"], "user")
+
+    def test_login_includes_pharmacy_id(self):
+        tokens = self.login("Pharmacist")
+        self.assertIn("pharmacy_id", tokens)
+        self.assertIsNotNone(tokens["pharmacy_id"])
+
+    def test_products_are_scoped_to_the_callers_pharmacy(self):
+        pharmacy_headers = self.authorization_header("Pharmacist")
+        self.create_product(pharmacy_headers, name="Our Medicine")
+
+        other_pharmacy_id = create_pharmacy(name="Second Pharmacy")
+        create_user("Second Pharmacist", "pharmacist", self.password, pharmacy_id=other_pharmacy_id)
+        other_headers = self.authorization_header("Second Pharmacist")
+        self.create_product(other_headers, name="Their Medicine")
+
+        response = self.client.get("/api/v1/products", headers=pharmacy_headers)
+        products = response.get_json()["products"]
+        self.assertEqual(products[0]["name"], "Our Medicine")
+        self.assertIn("pharmacy_name", products[0])
+
+        response = self.client.get("/api/v1/products", headers=other_headers)
+        products = response.get_json()["products"]
+        self.assertEqual(products[0]["name"], "Their Medicine")
+
+        our_product_id = self.create_product(pharmacy_headers, name="Scoped Batch")
+        response = self.client.get(f"/api/v1/products/{our_product_id}", headers=other_headers)
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get(f"/api/v1/products/{our_product_id}/batches", headers=other_headers)
+        self.assertEqual(response.status_code, 404)
+
+    def test_movements_are_scoped_to_the_callers_pharmacy(self):
+        pharmacy_headers = self.authorization_header("Pharmacist")
+        product_id = self.create_product(pharmacy_headers)
+        response = self.client.get(f"/api/v1/products/{product_id}/batches", headers=pharmacy_headers)
+        batch_id = response.get_json()["batches"][0]["id"]
+
+        other_pharmacy_id = create_pharmacy(name="Second Pharmacy")
+        create_user("Second Pharmacist", "pharmacist", self.password, pharmacy_id=other_pharmacy_id)
+        response = self.client.post(
+            "/api/v1/movements",
+            headers=self.authorization_header("Second Pharmacist"),
+            json={"product_batch_id": batch_id, "movement_type": "sale", "quantity": 1},
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["error"], "Product batch not found.")
+
+    def test_public_pharmacy_and_popular_endpoints(self):
+        self.create_product(self.authorization_header("Pharmacist"), name="Amoxicillin", price_per_unit=250)
+        self.create_product(self.authorization_header("Pharmacist"), name="Controlled", is_controlled=True)
+
+        response = self.client.get("/api/v1/pharmacies")
+        self.assertEqual(response.status_code, 200)
+        pharmacies = response.get_json()["pharmacies"]
+        self.assertTrue(pharmacies)
+        self.assertIn("opening_hours", pharmacies[0])
+
+        pharmacy_id = pharmacies[0]["id"]
+        response = self.client.get(f"/api/v1/pharmacies/{pharmacy_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["pharmacy"]["id"], pharmacy_id)
+
+        response = self.client.get(f"/api/v1/pharmacies/{pharmacy_id}/products")
+        self.assertEqual(response.status_code, 200)
+        names = [p["name"] for p in response.get_json()["products"]]
+        self.assertIn("Amoxicillin", names)
+        self.assertNotIn("Controlled", names)
+
+        response = self.client.get("/api/v1/pharmacies/does-not-exist")
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.get("/api/v1/products/popular")
+        self.assertEqual(response.status_code, 200)
+        popular = response.get_json()["products"]
+        self.assertTrue(popular)
+        self.assertEqual(popular[0]["name"], "Amoxicillin")
+        self.assertEqual(popular[0]["cheapest_price"], 250)
+        self.assertEqual(popular[0]["pharmacy_count"], 1)
+        self.assertTrue(popular[0]["any_in_stock"])
+
+        response = self.client.get("/api/v1/products/search?q=Amoxi")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([p["name"] for p in response.get_json()["products"]], ["Amoxicillin"])
+
+        response = self.client.get("/api/v1/products/search?q=")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["products"], [])
 
     def test_api_login_is_rate_limited(self):
         headers = {"REMOTE_ADDR": "198.51.100.17"}

@@ -79,6 +79,42 @@
         </div>
 
         <div class="pt-4 border-t border-outline-variant">
+            <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Pricing & Display</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+                <div class="space-y-2">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Price per Unit (FCFA)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="number" name="price_per_unit" min="0" step="0.01" placeholder="e.g. 250">
+                </div>
+                <div class="space-y-2">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Price per Packet (FCFA)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="number" name="price_per_packet" min="0" step="0.01" placeholder="e.g. 2400">
+                </div>
+                <div class="space-y-2">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Packet Size</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="number" name="packet_size" min="1" placeholder="e.g. 10">
+                </div>
+                <div class="space-y-2">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Unit Label</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="text" name="unit_label" placeholder="e.g. tablet">
+                </div>
+                <div class="space-y-2 md:col-span-2">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Image URL</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="url" name="image_url" placeholder="https://.../drug.jpg">
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t border-outline-variant">
             <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Initial Batch</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
                 <div class="space-y-2">

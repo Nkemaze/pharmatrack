@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, abort, session, Response
+from flask import Flask, render_template, request, redirect, url_for, jsonify, abort, session, Response, send_from_directory
 from flask_jwt_extended import JWTManager
+from flask_cors import CORS
 from datetime import timedelta
 import os
 import csv
 import io
-import time
+import json
 import functools
 from database.db import init_db
 from database.queries import (
@@ -18,7 +19,9 @@ from database.queries import (
     get_alert_count,
     get_users, get_user_by_id, create_user, delete_user, authenticate_user, user_name_exists,
     admin_exists,
-    get_all_movements_for_export, is_token_revoked
+    get_all_movements_for_export, is_token_revoked,
+    get_pharmacy, update_pharmacy, get_pharmacies,
+    login_attempt_lockout, record_login_attempt, clear_login_attempts,
 )
 from api import api_v1_bp
 
@@ -29,14 +32,19 @@ from api import api_v1_bp
 init_db()
 
 app = Flask(__name__)
-# Random key each launch is intentional: it means any previous session cookie
-# stops working, so the app always asks "who's using it?" on a fresh start -
-# reasonable for a shared desktop station used across shifts.
-app.secret_key = os.urandom(32)
+# Random key each launch is intentional on a desktop install: any previous
+# session cookie stops working, so the app always asks "who's using it?" on
+# a fresh start - reasonable for a shared desktop station used across shifts.
+# Hosted production needs a persistent SECRET_KEY so sessions survive
+# restarts; PHARMATRACK_ENV=production enforces that.
+secret_key = os.environ.get('SECRET_KEY')
+app.secret_key = secret_key if secret_key else os.urandom(32)
 is_production = os.environ.get('PHARMATRACK_ENV', '').lower() == 'production'
 jwt_secret = os.environ.get('JWT_SECRET_KEY')
 if is_production and not jwt_secret:
     raise RuntimeError('JWT_SECRET_KEY must be set when PHARMATRACK_ENV=production.')
+if is_production and not secret_key:
+    raise RuntimeError('SECRET_KEY must be set when PHARMATRACK_ENV=production.')
 
 # A development secret is safe only for local testing because it changes on
 # restart. Production requires a persistent secret supplied by the host.
@@ -49,6 +57,13 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(
 )
 app.config['JWT_TOKEN_LOCATION'] = ['headers']
 jwt = JWTManager(app)
+
+# CORS for the responsive web UI when accessed from another origin (e.g. the
+# customer app or a dev frontend served elsewhere). CORS_ORIGINS is a
+# comma-separated whitelist; '*' means any origin (fine for a public API).
+_cors_origins = os.environ.get('CORS_ORIGINS', '*')
+CORS(app, origins=_cors_origins.split(',') if _cors_origins != '*' else '*',
+     supports_credentials=True)
 
 
 @jwt.token_in_blocklist_loader
@@ -77,33 +92,28 @@ def revoked_token(_jwt_header, _jwt_payload):
 
 app.register_blueprint(api_v1_bp)
 
-# Basic login-attempt limiting. In-memory is fine here: this is a single
-# desktop process, not a multi-server deployment, and lockouts don't need
-# to survive an app restart. Maps name -> {"count": int, "locked_until": float}
-_login_attempts = {}
+# Login-attempt limiting, backed by the login_attempt table so it survives
+# restarts and works across multiple web workers (hosted deployment). The
+# web UI (and the API in api/auth.py) each use their own scope.
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_SECONDS = 60
 
 
+def _web_login_key():
+    return request.remote_addr or 'unknown'
+
+
 def _check_lockout(name):
     """Returns seconds remaining if locked out, or 0 if login can proceed."""
-    entry = _login_attempts.get(name)
-    if not entry:
-        return 0
-    remaining = entry["locked_until"] - time.time()
-    return max(0, remaining)
+    return login_attempt_lockout('web', name, MAX_LOGIN_ATTEMPTS, LOCKOUT_SECONDS)
 
 
 def _record_failed_attempt(name):
-    entry = _login_attempts.setdefault(name, {"count": 0, "locked_until": 0})
-    entry["count"] += 1
-    if entry["count"] >= MAX_LOGIN_ATTEMPTS:
-        entry["locked_until"] = time.time() + LOCKOUT_SECONDS
-        entry["count"] = 0
+    record_login_attempt('web', name, MAX_LOGIN_ATTEMPTS, LOCKOUT_SECONDS)
 
 
 def _clear_attempts(name):
-    _login_attempts.pop(name, None)
+    clear_login_attempts('web', name)
 
 
 def login_required(view):
@@ -219,6 +229,39 @@ def logout():
     return redirect(url_for('login'))
 
 
+# --- Public APK download (Phase 4: hosted on Render) ---
+
+APK_DIR = os.environ.get('PHARMATRACK_APK_DIR') or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'static', 'downloads')
+APK_FILENAME = 'pharmafinder-v1.0.0.apk'
+APK_VERSION = '1.0.0'
+
+
+def _apk_path():
+    return os.path.join(APK_DIR, APK_FILENAME)
+
+
+@app.route('/download')
+def download_landing():
+    """Landing page describing the customer app, with a download button."""
+    return render_template('download.html', apk_version=APK_VERSION,
+                           apk_url=url_for('apk_latest'))
+
+
+@app.route('/apk/latest')
+def apk_latest():
+    """Serves the latest customer-app APK, forcing a browser download."""
+    if not os.path.isfile(_apk_path()):
+        abort(404, description="APK not available yet.")
+    return send_from_directory(
+        APK_DIR, APK_FILENAME,
+        as_attachment=True,
+        mimetype='application/vnd.android.package-archive',
+        download_name=f'pharmafinder-v{APK_VERSION}.apk',
+        max_age=0,  # clients must re-check: the file is replaced on release
+    )
+
+
 @app.route('/')
 @login_required
 def dashboard():
@@ -255,6 +298,11 @@ def add_product():
             batch_number=request.form.get('batch_number'),
             expiry_date=request.form.get('expiry_date'),
             initial_quantity=request.form.get('initial_quantity') or 0,
+            price_per_unit=request.form.get('price_per_unit') or None,
+            price_per_packet=request.form.get('price_per_packet') or None,
+            packet_size=request.form.get('packet_size') or None,
+            unit_label=request.form.get('unit_label') or None,
+            image_url=request.form.get('image_url') or None,
         )
         return redirect(url_for('product_details', product_id=product_id))
 
@@ -309,6 +357,11 @@ def edit_product(product_id):
             barcode=request.form.get('barcode') or None,
             requires_prescription=request.form.get('requires_prescription') == 'on',
             is_controlled=request.form.get('is_controlled') == 'on',
+            price_per_unit=request.form.get('price_per_unit') or None,
+            price_per_packet=request.form.get('price_per_packet') or None,
+            packet_size=request.form.get('packet_size') or None,
+            unit_label=request.form.get('unit_label') or None,
+            image_url=request.form.get('image_url') or None,
         )
         return redirect(url_for('product_details', product_id=product_id))
 
@@ -327,25 +380,84 @@ def preferences():
 @app.route('/settings', methods=['GET', 'POST'])
 @admin_required
 def settings():
-    """Admin-only: system-wide configuration, not personal preferences."""
+    """Admin-only: system-wide configuration, not personal preferences.
+
+    Pharmacy profile lives in the shared `pharmacy` table (name, address,
+    contact, location, hours, status) so the hosted customer API can serve
+    the same data. Display-only settings (low-stock threshold) stay in the
+    per-device settings table, which is fine for both desktop and hosted.
+    """
+    pharmacy_id = _current_admin_pharmacy_id()
+    pharmacy = get_pharmacy(pharmacy_id) if pharmacy_id else None
+    if pharmacy is None:
+        # No pharmacy tenant yet - the auto-migration should have created
+        # one, but be defensive about a deliberately empty database.
+        pharmacy = {}
+
     if request.method == 'POST':
-        set_setting('pharmacy_name', request.form.get('pharmacy_name', 'PharmaTrack Pharmacy'))
-        set_setting('pharmacy_address', request.form.get('pharmacy_address', ''))
-        set_setting('pharmacy_latitude', request.form.get('pharmacy_latitude', ''))
-        set_setting('pharmacy_longitude', request.form.get('pharmacy_longitude', ''))
+        opening_hours = {
+            'weekdayOpen': request.form.get('hours_weekday_open') or None,
+            'weekdayClose': request.form.get('hours_weekday_close') or None,
+            'weekendOpen': request.form.get('hours_weekend_open') or None,
+            'weekendClose': request.form.get('hours_weekend_close') or None,
+        }
+        update_pharmacy(
+            pharmacy_id,
+            name=request.form.get('pharmacy_name', ''),
+            address=request.form.get('pharmacy_address', ''),
+            city=request.form.get('pharmacy_city', ''),
+            phone=request.form.get('pharmacy_phone', ''),
+            emergency_phone=request.form.get('pharmacy_emergency_phone', ''),
+            latitude=request.form.get('pharmacy_latitude') or None,
+            longitude=request.form.get('pharmacy_longitude') or None,
+            opening_hours=json.dumps(opening_hours),
+            status=request.form.get('pharmacy_status') or 'active',
+        )
         set_setting('low_stock_threshold', request.form.get('low_stock_threshold', '100'))
         return redirect(url_for('settings'))
 
+    parsed_hours = _parse_hours(pharmacy.get('opening_hours'))
     return render_template(
         'settings.html',
         active_page='settings',
-        pharmacy_name=get_setting('pharmacy_name', 'PharmaTrack Pharmacy'),
-        pharmacy_address=get_setting('pharmacy_address', ''),
-        pharmacy_latitude=get_setting('pharmacy_latitude', ''),
-        pharmacy_longitude=get_setting('pharmacy_longitude', ''),
+        pharmacy_id=pharmacy.get('id'),
+        pharmacy_name=pharmacy.get('name', ''),
+        pharmacy_address=pharmacy.get('address', ''),
+        pharmacy_city=pharmacy.get('city', ''),
+        pharmacy_phone=pharmacy.get('phone', ''),
+        pharmacy_emergency_phone=pharmacy.get('emergency_phone', ''),
+        pharmacy_latitude=pharmacy.get('latitude', ''),
+        pharmacy_longitude=pharmacy.get('longitude', ''),
+        pharmacy_status=pharmacy.get('status', 'active'),
+        hours_weekday_open=parsed_hours.get('weekdayOpen') or '',
+        hours_weekday_close=parsed_hours.get('weekdayClose') or '',
+        hours_weekend_open=parsed_hours.get('weekendOpen') or '',
+        hours_weekend_close=parsed_hours.get('weekendClose') or '',
         low_stock_threshold=get_setting('low_stock_threshold', '100'),
-        total_products=len(get_product_list()),
+        total_products=len(get_product_list(pharmacy_id=pharmacy.get('id'))),
     )
+
+
+def _current_admin_pharmacy_id():
+    """The pharmacy the signed-in admin belongs to, or None."""
+    user = get_user_by_id(session.get('user_id'))
+    if user and user.get('pharmacy_id'):
+        return user['pharmacy_id']
+    # Fall back to the mailing tenant so a freshly-created admin with no
+    # explicit pharmacy still lands on the default one.
+    pharmacies = get_pharmacies()
+    return pharmacies[0]['id'] if pharmacies else None
+
+
+def _parse_hours(raw):
+    """opening_hours is stored as JSON text. Never raises."""
+    if not raw:
+        return {}
+    try:
+        import json as _json
+        return _json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
 
 @app.route('/settings/users', methods=['GET', 'POST'])
 @admin_required

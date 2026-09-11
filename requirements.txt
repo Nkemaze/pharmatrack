@@ -1,4 +1,7 @@
 Flask
 pywebview
 Flask-JWT-Extended
+Flask-CORS
 waitress
+gunicorn
+psycopg[binary]

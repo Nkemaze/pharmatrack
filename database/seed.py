@@ -27,26 +27,44 @@ def seed():
     cur.execute("DELETE FROM stock_movement")
     cur.execute("DELETE FROM product_batch")
     cur.execute("DELETE FROM product")
-    cur.execute("DELETE FROM user")
+    cur.execute('DELETE FROM "user"')
 
     # No demo users are created here anymore - people register their own
     # account (with their own name, password, and chosen role) from the
     # app's Register screen. Seeded product movements below are attributed
     # to no one in particular (performed_by_user_id left NULL).
 
+    # A pharmacy tenant for the seed data (desktop: the single default tenant).
+    import json
+    pharmacy_id = new_id()
+    cur.execute(
+        """INSERT INTO pharmacy
+           (id, name, address, city, phone, emergency_phone, latitude,
+            longitude, opening_hours, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')""",
+        (pharmacy_id, "PharmaTrack Pharmacy", "Avenue de la République",
+         "Yaoundé", "+237 222 22 22 22", "+237 677 00 00 00", "3.8480", "11.5021",
+         json.dumps({"weekdayOpen": "08:00", "weekdayClose": "18:00",
+                     "weekendOpen": "09:00", "weekendClose": "14:00"}))
+    )
 
     # --- Products (matches names used across the UI screens) ---
     products = [
         {"name": "Amoxicillin 500mg", "category": "Antibiotics", "strength": "500mg", "dosage_form": "Capsule",
-         "requires_prescription": 1, "is_controlled": 0},
+         "requires_prescription": 1, "is_controlled": 0,
+         "price_per_unit": 250, "price_per_packet": 2400, "packet_size": 10, "unit_label": "capsule"},
         {"name": "Paracetamol 500mg", "category": "Analgesics", "strength": "500mg", "dosage_form": "Tablet",
-         "requires_prescription": 0, "is_controlled": 0},
+         "requires_prescription": 0, "is_controlled": 0,
+         "price_per_unit": 100, "price_per_packet": 850, "packet_size": 10, "unit_label": "tablet"},
         {"name": "Insulin Glargine 100u/ml", "category": "Diabetic Care", "strength": "100u/ml", "dosage_form": "Injection",
-         "requires_prescription": 1, "is_controlled": 0},
+         "requires_prescription": 1, "is_controlled": 0,
+         "price_per_unit": 15000, "price_per_packet": 15000, "packet_size": 1, "unit_label": "pen"},
         {"name": "Diazepam 5mg", "category": "Controlled - Sedative", "strength": "5mg", "dosage_form": "Tablet",
-         "requires_prescription": 1, "is_controlled": 1},
+         "requires_prescription": 1, "is_controlled": 1,
+         "price_per_unit": 120, "price_per_packet": 1050, "packet_size": 10, "unit_label": "tablet"},
         {"name": "Morphine Sulfate 10mg", "category": "Controlled - Analgesic", "strength": "10mg", "dosage_form": "Tablet",
-         "requires_prescription": 1, "is_controlled": 1},
+         "requires_prescription": 1, "is_controlled": 1,
+         "price_per_unit": 800, "price_per_packet": 7500, "packet_size": 10, "unit_label": "tablet"},
     ]
 
     today = datetime.now()
@@ -54,10 +72,13 @@ def seed():
     for p in products:
         product_id = new_id()
         cur.execute(
-            """INSERT INTO product (id, name, category, strength, dosage_form, requires_prescription, is_controlled)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (product_id, p["name"], p["category"], p["strength"], p["dosage_form"],
-             p["requires_prescription"], p["is_controlled"])
+            """INSERT INTO product (id, pharmacy_id, name, category, strength, dosage_form,
+               requires_prescription, is_controlled, price_per_unit, price_per_packet,
+               packet_size, unit_label)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (product_id, pharmacy_id, p["name"], p["category"], p["strength"], p["dosage_form"],
+             p["requires_prescription"], p["is_controlled"], p["price_per_unit"],
+             p["price_per_packet"], p["packet_size"], p["unit_label"])
         )
 
         # One batch per product, expiry a few months out (except one deliberately near-expiry)
@@ -93,7 +114,7 @@ def seed():
 
     conn.commit()
     conn.close()
-    print("Seed data inserted: 5 products, 5 batches, movements included.")
+    print("Seed data inserted: 5 products, 1 pharmacy, 5 batches, movements included.")
     print("No user accounts were created - register your own account from the app's Register screen.")
 
 

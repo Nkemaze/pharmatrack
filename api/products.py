@@ -4,7 +4,7 @@ from flask import jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 
 from api import api_v1_bp
-from api.auth import _api_error, role_required
+from api.auth import _api_error, get_api_pharmacy_id, role_required
 from api.validation import (
     ValidationError, boolean, get_json_object, integer, iso_date,
     optional_string, reject_unknown_fields, required_string,
@@ -22,14 +22,16 @@ def list_products():
     substances. This is what the mobile app's customers use, with no
     login required at all.
 
-    Valid pharmacy/admin token: full detailed view, same as the web app.
+    Valid pharmacy/admin token: full detailed view, same as the web app,
+    scoped to the token's pharmacy (admin also sees only their own
+    pharmacy unless they browse another's products).
     """
     search = request.args.get('q', '').strip() or None
     claims = get_jwt() or {}
     role = claims.get('role')
 
     if role in ('pharmacy', 'admin'):
-        products = get_product_list(search)
+        products = get_product_list(search, pharmacy_id=get_api_pharmacy_id())
     else:
         products = get_public_inventory(search)
 
@@ -39,7 +41,7 @@ def list_products():
 @api_v1_bp.get('/products/<product_id>')
 @role_required('pharmacy', 'admin')
 def get_product(product_id):
-    product = get_product_detail(product_id)
+    product = get_product_detail(product_id, pharmacy_id=get_api_pharmacy_id())
     if product is None:
         return _api_error('Product not found.', 404)
     return jsonify(product=product)
@@ -54,6 +56,8 @@ def add_product():
             'name', 'category', 'strength', 'dosage_form', 'barcode',
             'requires_prescription', 'is_controlled', 'batch_number',
             'expiry_date', 'initial_quantity',
+            'price_per_unit', 'price_per_packet', 'packet_size',
+            'unit_label', 'image_url',
         })
         product_id = create_product(
             name=required_string(data, 'name'),
@@ -67,6 +71,12 @@ def add_product():
             expiry_date=iso_date(data, 'expiry_date'),
             initial_quantity=integer(data, 'initial_quantity', default=0, minimum=0),
             performed_by_user_id=get_jwt_identity(),
+            pharmacy_id=get_api_pharmacy_id(),
+            price_per_unit=data.get('price_per_unit'),
+            price_per_packet=data.get('price_per_packet'),
+            packet_size=data.get('packet_size'),
+            unit_label=optional_string(data, 'unit_label'),
+            image_url=optional_string(data, 'image_url'),
         )
     except (TypeError, ValidationError, ValueError) as exc:
         return _api_error(str(exc))
@@ -76,7 +86,7 @@ def add_product():
 @api_v1_bp.put('/products/<product_id>')
 @role_required('pharmacy', 'admin')
 def edit_product(product_id):
-    existing = get_product_detail(product_id)
+    existing = get_product_detail(product_id, pharmacy_id=get_api_pharmacy_id())
     if existing is None:
         return _api_error('Product not found.', 404)
     try:
@@ -84,6 +94,8 @@ def edit_product(product_id):
         reject_unknown_fields(data, {
             'name', 'category', 'strength', 'dosage_form', 'barcode',
             'requires_prescription', 'is_controlled',
+            'price_per_unit', 'price_per_packet', 'packet_size',
+            'unit_label', 'image_url',
         })
         if not data:
             return _api_error('At least one field must be provided.')
@@ -96,6 +108,11 @@ def edit_product(product_id):
             optional_string(data, 'barcode', default=existing['barcode']),
             boolean(data, 'requires_prescription', default=bool(existing['requires_prescription'])),
             boolean(data, 'is_controlled', default=bool(existing['is_controlled'])),
+            price_per_unit=data.get('price_per_unit', existing.get('price_per_unit')),
+            price_per_packet=data.get('price_per_packet', existing.get('price_per_packet')),
+            packet_size=data.get('packet_size', existing.get('packet_size')),
+            unit_label=optional_string(data, 'unit_label', default=existing.get('unit_label')),
+            image_url=optional_string(data, 'image_url', default=existing.get('image_url')),
         )
     except (ValidationError, ValueError) as exc:
         return _api_error(str(exc))
@@ -105,6 +122,6 @@ def edit_product(product_id):
 @api_v1_bp.get('/products/<product_id>/batches')
 @role_required('pharmacy', 'admin')
 def list_batches(product_id):
-    if get_product_detail(product_id) is None:
+    if get_product_detail(product_id, pharmacy_id=get_api_pharmacy_id()) is None:
         return _api_error('Product not found.', 404)
-    return jsonify(batches=get_batches_for_product(product_id))
+    return jsonify(batches=get_batches_for_product(product_id, pharmacy_id=get_api_pharmacy_id()))
