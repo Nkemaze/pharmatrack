@@ -196,6 +196,11 @@ python app.py
 
 The database is created automatically when the application starts.
 
+On Linux, running `python app.py` opens a native desktop window when GTK or
+Qt bindings are available. If neither backend is installed, it automatically
+opens the application in the default browser instead. The Flask server remains
+running until you stop it with `Ctrl+C`.
+
 ## Automated API tests
 
 The test suite creates a temporary SQLite database, so it never changes your

@@ -428,7 +428,16 @@ def start_flask():
 
 if __name__ == '__main__':
     import threading
-    import webview
+    import webbrowser
+
     threading.Thread(target=start_flask, daemon=True).start()
-    webview.create_window('PharmaTrack', 'http://127.0.0.1:5000')
-    webview.start()
+    app_url = 'http://127.0.0.1:5000'
+
+    try:
+        import webview
+        webview.create_window('PharmaTrack', app_url)
+        webview.start()
+    except webview.errors.WebViewException:
+        print('pywebview has no GTK or Qt backend; opening PharmaTrack in your browser.')
+        webbrowser.open(app_url)
+        threading.Event().wait()
