@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS pharmacy (
     latitude TEXT,
     longitude TEXT,
     opening_hours TEXT,             -- JSON: weekdayOpen, weekdayClose, weekendOpen, weekendClose
-    status TEXT NOT NULL DEFAULT 'active',  -- active | suspended
+    status TEXT NOT NULL DEFAULT 'active',  -- active | pending | rejected | suspended
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

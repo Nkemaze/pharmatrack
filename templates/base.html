@@ -65,6 +65,14 @@
                 <span>Loss Reports</span>
             </a>
             {% if current_user_role == 'admin' %}
+            <a class="flex items-center gap-stack-gap {% if active_page == 'pharmacies' %}bg-secondary-container text-on-secondary-container border-l-4 border-secondary{% else %}text-on-primary-container hover:bg-surface-variant/10{% endif %} px-4 py-3 font-label-bold text-label-bold transition-all duration-150"
+                href="{{ url_for('manage_pharmacies') }}">
+                <span class="material-symbols-outlined">local_pharmacy</span>
+                <span>Pharmacies</span>
+                {% if pending_pharmacy_count > 0 %}
+                <span class="ml-auto bg-error text-on-error rounded-full text-[10px] px-1.5 py-0.5 font-bold">{{ pending_pharmacy_count }}</span>
+                {% endif %}
+            </a>
             <a class="flex items-center gap-stack-gap {% if active_page == 'settings' %}bg-secondary-container text-on-secondary-container border-l-4 border-secondary{% else %}text-on-primary-container hover:bg-surface-variant/10{% endif %} px-4 py-3 font-label-bold text-label-bold transition-all duration-150"
                 href="{{ url_for('settings') }}">
                 <span class="material-symbols-outlined">settings</span>

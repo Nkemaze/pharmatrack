@@ -39,7 +39,7 @@
 
 <body class="bg-background text-on-surface">
     <div class="login-shell px-6">
-        <div class="w-full max-w-sm">
+        <div class="w-full {{ 'max-w-md' if is_hosted and not success else 'max-w-sm' }}">
 
             <div class="text-center mb-8">
                 <!--
@@ -57,21 +57,157 @@
                         onerror="this.style.display='none';">
                 </div>
                 <h1 class="font-headline-md text-headline-md font-bold text-on-surface">PharmaTrack</h1>
-                <p class="font-body-sm text-on-surface-variant mt-1">Create your account</p>
+                <p class="font-body-sm text-on-surface-variant mt-1">{% if is_hosted %}Register your pharmacy{% else
+                    %}Create your account{% endif %}</p>
             </div>
 
-            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
+            {% if error %}
+            <div
+                class="mb-5 px-4 py-3 bg-error-container text-on-error-container rounded-lg text-body-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">error</span>
+                {{ error }}
+            </div>
+            {% endif %}
 
-                {% if error %}
-                <div
-                    class="mb-5 px-4 py-3 bg-error-container text-on-error-container rounded-lg text-body-sm flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base">error</span>
-                    {{ error }}
+            {% if success %}
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined text-secondary mt-0.5">check_circle</span>
+                    <p class="font-body-md text-on-surface">{{ success }}</p>
                 </div>
+                <a href="{{ url_for('login') }}"
+                    class="mt-6 block w-full text-center py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
+                    Sign in
+                </a>
+            </div>
+
+            {% elif is_hosted %}
+
+            {% if not admin_taken %}
+            <div class="mb-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+                <p class="font-label-bold text-label-bold text-on-surface uppercase tracking-wide mb-1">No administrator
+                    yet</p>
+                <p class="font-body-sm text-on-surface-variant mb-4">You are setting up this platform for the first
+                    time. Create the administrator account first &mdash; after that, registrations here are pharmacy
+                    applications for you to approve.</p>
+                <form method="POST" class="space-y-4">
+                    <input type="hidden" name="role" value="admin">
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Administrator name</label>
+                        <input class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                            type="text" name="name" autocomplete="username" required autofocus>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Password</label>
+                        <input class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                            type="password" name="password" minlength="8" autocomplete="new-password" required>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Confirm Password</label>
+                        <input class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                            type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+                    </div>
+                    <button type="submit"
+                        class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
+                        Create Administrator
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
+                {% if admin_taken %}
+                <p class="text-center font-body-sm text-on-surface-variant mb-5">Applications are reviewed and approved
+                    by the administrator. You will be able to sign in once your pharmacy is approved.</p>
+                {% else %}
+                <p class="text-center font-body-sm text-on-surface-variant mb-5">Register your pharmacy to apply for
+                    access. An administrator will review and approve your application.</p>
                 {% endif %}
 
                 <form method="POST" class="space-y-5">
+                    <input type="hidden" name="role" value="pharmacy">
 
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Pharmacy name</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">store</span>
+                            <input
+                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                                type="text" name="pharmacy_name" required>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Contact email (your
+                            login)</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">mail</span>
+                            <input
+                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                                type="email" name="email" autocomplete="username" required>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Address</label>
+                        <input
+                            class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                            type="text" name="address">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="block font-label-bold text-label-bold text-on-surface">City</label>
+                            <input
+                                class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                                type="text" name="city">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block font-label-bold text-label-bold text-on-surface">Phone</label>
+                            <input
+                                class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                                type="tel" name="phone">
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Password</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
+                            <input
+                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                                type="password" name="password" minlength="8" autocomplete="new-password" required>
+                        </div>
+                        <p class="text-body-sm text-on-surface-variant">At least 8 characters.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Confirm Password</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
+                            <input
+                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
+                                type="password" name="confirm_password" minlength="8" autocomplete="new-password"
+                                required>
+                        </div>
+                    </div>
+
+                    <button type="submit"
+                        class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm">
+                        Submit Application
+                    </button>
+                </form>
+            </div>
+
+            {% else %}
+            {# Desktop / single-pharmacy station: create a local account. #}
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
+
+                <form method="POST" class="space-y-5">
                     <div class="space-y-2">
                         <label class="block font-label-bold text-label-bold text-on-surface">Name</label>
                         <div class="relative">
@@ -133,6 +269,7 @@
                 </form>
 
             </div>
+            {% endif %}
 
             <p class="text-center text-body-sm text-on-surface-variant mt-6">
                 Already have an account? <a href="{{ url_for('login') }}"

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Manage Pharmacies - PharmaTrack{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto w-full">
+    <div class="mb-8">
+        <a href="{{ url_for('settings') }}"
+            class="text-secondary font-label-bold text-label-bold hover:underline">&larr; Back to Settings</a>
+        <h2 class="font-headline-md text-display text-on-surface mb-2 mt-2">Pharmacy Accounts</h2>
+        <p class="font-body-md text-on-surface-variant">Review and approve pharmacy registrations, and control which
+            tenants are active on this platform. Pending applications cannot sign in until you approve them.</p>
+    </div>
+
+    {% set pending = pharmacies | selectattr('status', 'equalto', 'pending') | list %}
+    <div class="mb-5 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg text-body-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">hourglass_top</span>
+        {{ pending | length }} application{{ 's' if pending | length != 1 else '' }} awaiting approval.
+    </div>
+
+    {% if not pharmacies %}
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-10 text-center">
+        <span class="material-symbols-outlined text-4xl text-on-surface-variant">local_pharmacy</span>
+        <p class="font-body-md text-on-surface-variant mt-3">No pharmacies yet. Once pharmacies register, their
+            applications will appear here for approval.</p>
+    </div>
+    {% else %}
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-surface-container-low border-b border-outline-variant">
+                <tr>
+                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Pharmacy</th>
+                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Applicant</th>
+                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Registered</th>
+                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Status</th>
+                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+                {% for p in pharmacies %}
+                <tr class="{% if p.status == 'pending' %}bg-secondary-container/20{% endif %}">
+                    <td class="px-6 py-cell-padding-v">
+                        <p class="font-body-md text-body-md text-on-surface">{{ p.name }}</p>
+                        <p class="text-body-sm text-on-surface-variant">{{ p.city or '&mdash;' | safe }}{% if p.city and p.phone %} &middot; {% endif %}{{ p.phone or '' }}</p>
+                    </td>
+                    <td class="px-6 py-cell-padding-v">
+                        <p class="font-body-md text-body-md text-on-surface">{{ p.applicant_name or '&mdash;' }}</p>
+                        <p class="text-body-sm text-on-surface-variant capitalize">{{ p.applicant_status or '' }}</p>
+                    </td>
+                    <td class="px-6 py-cell-padding-v font-body-md text-body-md text-on-surface-variant">{{ p.created_at[:10] if p.created_at else '&mdash;' }}</td>
+                    <td class="px-6 py-cell-padding-v">
+                        <span class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide
+                            {% if p.status == 'active' %}bg-green-500/15 text-green-600 dark:text-green-400
+                            {% elif p.status == 'pending' %}bg-amber-500/15 text-amber-600 dark:text-amber-400
+                            {% elif p.status == 'rejected' %}bg-on-surface-variant/10 text-on-surface-variant
+                            {% else %}bg-error/15 text-error{% endif %}">
+                            {{ p.status }}
+                        </span>
+                        {% if p.status == 'pending' and p.created_at %}
+                        <p class="text-[11px] text-on-surface-variant mt-1">{{ (p.created_at[:10]) }}</p>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-cell-padding-v text-right whitespace-nowrap">
+                        {% if p.status == 'pending' %}
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='approve') }}" style="display:inline;">
+                            <button type="submit" class="text-green-600 dark:text-green-400 font-label-bold text-label-bold text-sm hover:underline mr-2">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='reject') }}" style="display:inline;"
+                            onsubmit="return confirm('Reject {{ p.name }} application?');">
+                            <button type="submit" class="text-on-surface-variant font-label-bold text-label-bold text-sm hover:underline mr-2">Reject</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}" style="display:inline;"
+                            onsubmit="return confirm('Delete {{ p.name }} application? This cannot be undone.');">
+                            <button type="submit" class="text-error font-label-bold text-label-bold text-sm hover:underline">Delete</button>
+                        </form>
+                        {% elif p.status == 'active' %}
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='suspend') }}" style="display:inline;"
+                            onsubmit="return confirm('Suspend {{ p.name }}? Nobody at this pharmacy will be able to sign in.');">
+                            <button type="submit" class="text-error font-label-bold text-label-bold text-sm hover:underline">Suspend</button>
+                        </form>
+                        {% elif p.status == 'suspended' %}
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='activate') }}" style="display:inline;">
+                            <button type="submit" class="text-green-600 dark:text-green-400 font-label-bold text-label-bold text-sm hover:underline">Activate</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='activate') }}" style="display:inline;">
+                            <button type="submit" class="text-green-600 dark:text-green-400 font-label-bold text-label-bold text-sm hover:underline mr-2">Activate</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}" style="display:inline;"
+                            onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                            <button type="submit" class="text-error font-label-bold text-label-bold text-sm hover:underline">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

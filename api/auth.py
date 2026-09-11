@@ -11,6 +11,7 @@ from flask_jwt_extended import (
 from database.queries import (
     authenticate_user, create_user, revoke_token, user_name_exists,
     login_attempt_lockout, record_login_attempt, clear_login_attempts,
+    login_status_block,
 )
 from api import api_v1_bp
 from api.validation import (
@@ -93,6 +94,13 @@ def login():
     role = normalize_api_role(account['role'])
     if role not in {'pharmacy', 'admin', 'user'}:
         return _api_error('This account has no API role.', 403)
+
+    # A valid credential does not mean the account may sign in yet: pharmacy
+    # applications awaiting approval, and suspended/rejected tenants, are
+    # blocked here just like the web UI blocks them.
+    block_message = login_status_block(account)
+    if block_message:
+        return _api_error(block_message, 403)
 
     _clear_failed_api_logins(login_key)
 

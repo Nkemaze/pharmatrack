@@ -107,6 +107,20 @@ def _add_pharmacist(conn, pharmacy_slug, username):
     )
 
 
+def _add_admin(conn):
+    """A platform administrator (no pharmacy tenant) so the hosted demo is
+    immediately usable - sign in to review and approve pharmacy
+    applications. Idempotent like everything else here."""
+    conn.execute(
+        """INSERT INTO "user"
+           (id, name, role, password_hash, pharmacy_id, status)
+           VALUES (?, ?, 'admin', ?, NULL, 'active')
+           ON CONFLICT(id) DO NOTHING""",
+        (_id('user:admin-demo'), 'admin-demo',
+         generate_password_hash('demo-pass-123')),
+    )
+
+
 def _item(category, strength, dosage_form, name, unit, packet_size,
           unit_price, packet_price, rx=False, **extra):
     return {
@@ -181,6 +195,7 @@ def seed():
                           emergency, hours)
             _add_products(conn, slug, _catalogue(scale))
             _add_pharmacist(conn, slug, slug)
+        _add_admin(conn)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -191,6 +206,7 @@ def seed():
     print(f'Demo data seeded for {len(pharma)} pharmacies:')
     for slug, name, *_ in pharma:
         print(f'  - {name}  (login: {slug} / demo-pass-123)')
+    print('  - Platform administrator  (login: admin-demo / demo-pass-123)')
 
 
 if __name__ == '__main__':

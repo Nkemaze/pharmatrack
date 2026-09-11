@@ -22,6 +22,9 @@ from database.queries import (
     get_all_movements_for_export, is_token_revoked,
     get_pharmacy, update_pharmacy, get_pharmacies,
     login_attempt_lockout, record_login_attempt, clear_login_attempts,
+    create_pharmacy_registration, get_pharmacies_with_applicant,
+    get_pending_pharmacy_count, update_pharmacy_status,
+    delete_pharmacy_application, login_status_block,
 )
 from api import api_v1_bp
 
@@ -164,45 +167,115 @@ def pharmacist_required(view):
 def inject_globals():
     """Available in every template: the alert badge count, and who's
     currently logged in (for the sidebar profile section and role checks)."""
+    is_admin = session.get('role') == 'admin'
     return {
         "alert_count": get_alert_count() if 'user_id' in session else 0,
+        "pending_pharmacy_count": get_pending_pharmacy_count() if is_admin else 0,
         "current_user_id": session.get('user_id'),
         "current_user_name": session.get('user_name'),
         "current_user_role": session.get('role'),
     }
 
 
+def _is_hosted():
+    """True on the hosted multi-tenant server (PostgreSQL), where /register
+    accepts pharmacy applications. Desktop single-pharmacy installs keep the
+    legacy account form. PHARMATRACK_HOSTED lets the test suite exercise the
+    hosted flow against a local database."""
+    return bool(os.environ.get('DATABASE_URL')) or \
+        os.environ.get('PHARMATRACK_HOSTED', '').lower() in ('1', 'true', 'yes')
+
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     error = None
+    success = None
     admin_taken = admin_exists()
+    is_hosted = _is_hosted()
 
     if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-        role = request.form.get('role', 'pharmacist')
+        role = request.form.get('role', 'pharmacy')
 
-        if not name or not password:
-            error = "Name and password are required."
-        elif password != confirm_password:
-            error = "Passwords do not match."
-        elif len(password) < 8:
-            error = "Password must be at least 8 characters."
-        elif user_name_exists(name):
-            error = "That name is already registered. Choose another, or sign in instead."
-        elif role == 'admin' and admin_taken:
-            # Server-side enforcement - not just a hidden dropdown option.
-            # Even a tampered request can't create a second admin.
-            error = "An admin account already exists for this pharmacy. Register as a pharmacist instead."
+        if not is_hosted:
+            # Desktop / single-pharmacy station: create a local account.
+            name = request.form.get('name', '').strip()
+            password = request.form.get('password', '')
+            confirm_password = request.form.get('confirm_password', '')
+
+            if not name or not password:
+                error = "Name and password are required."
+            elif password != confirm_password:
+                error = "Passwords do not match."
+            elif len(password) < 8:
+                error = "Password must be at least 8 characters."
+            elif user_name_exists(name):
+                error = "That name is already registered. Choose another, or sign in instead."
+            elif role == 'admin' and admin_taken:
+                # Server-side enforcement - not just a hidden dropdown option.
+                # Even a tampered request can't create a second admin.
+                error = "An admin account already exists for this pharmacy. Register as a pharmacist instead."
+            else:
+                user_id = create_user(name=name, role=role, password=password)
+                session['user_id'] = user_id
+                session['user_name'] = name
+                session['role'] = role
+                return redirect(url_for('dashboard'))
+
+        elif role == 'admin':
+            # Hosted bootstrap: the very first account is the platform
+            # administrator. After that, registration is pharmacy-only.
+            name = request.form.get('name', '').strip()
+            password = request.form.get('password', '')
+            confirm_password = request.form.get('confirm_password', '')
+            if admin_taken:
+                error = "An admin account already exists for this site."
+            elif not name or not password:
+                error = "Name and password are required."
+            elif password != confirm_password:
+                error = "Passwords do not match."
+            elif len(password) < 8:
+                error = "Password must be at least 8 characters."
+            elif user_name_exists(name):
+                error = "That name is already registered. Choose another."
+            else:
+                create_user(name=name, role='admin', password=password)
+                success = ("Administrator account created. "
+                           "Sign in to review pharmacy applications.")
+
         else:
-            user_id = create_user(name=name, role=role, password=password)
-            session['user_id'] = user_id
-            session['user_name'] = name
-            session['role'] = role
-            return redirect(url_for('dashboard'))
+            # Hosted self-registration: a pharmacy application. It is saved
+            # as 'pending' and the applicant cannot sign in until an
+            # administrator approves it. No auto-login here.
+            pharmacy_name = request.form.get('pharmacy_name', '').strip()
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            confirm_password = request.form.get('confirm_password', '')
 
-    return render_template('register.html', error=error, admin_taken=admin_taken)
+            if not pharmacy_name or not email:
+                error = "Pharmacy name and contact email are required."
+            elif '@' not in email:
+                error = "Enter a valid contact email address."
+            elif password != confirm_password:
+                error = "Passwords do not match."
+            elif len(password) < 8:
+                error = "Password must be at least 8 characters."
+            elif user_name_exists(email):
+                error = "That email is already registered. Sign in instead."
+            else:
+                create_pharmacy_registration(
+                    name=pharmacy_name,
+                    email=email,
+                    password=password,
+                    address=request.form.get('address', '').strip() or None,
+                    city=request.form.get('city', '').strip() or None,
+                    phone=request.form.get('phone', '').strip() or None,
+                )
+                success = ("Your pharmacy registration has been submitted and "
+                           "is now awaiting administrator approval. You will be "
+                           "able to sign in once it has been approved.")
+
+    return render_template('register.html', error=error, success=success,
+                           admin_taken=admin_taken, is_hosted=is_hosted)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -218,15 +291,22 @@ def login():
         else:
             user = authenticate_user(name, password)
             if user:
-                _clear_attempts(name)
-                session['user_id'] = user['id']
-                session['user_name'] = user['name']
-                session['role'] = user['role']
-                next_url = request.form.get('next') or url_for('dashboard')
-                return redirect(next_url)
-            # Deliberately generic - never reveals whether the name exists
-            _record_failed_attempt(name)
-            error = "Incorrect name or password."
+                block_message = login_status_block(user)
+                if block_message:
+                    # Valid credentials, but the account (or its pharmacy
+                    # tenant) is pending approval, suspended or rejected.
+                    error = block_message
+                else:
+                    _clear_attempts(name)
+                    session['user_id'] = user['id']
+                    session['user_name'] = user['name']
+                    session['role'] = user['role']
+                    next_url = request.form.get('next') or url_for('dashboard')
+                    return redirect(next_url)
+            else:
+                # Deliberately generic - never reveals whether the name exists
+                _record_failed_attempt(name)
+                error = "Incorrect name or password."
 
     return render_template('login.html', error=error, next=request.args.get('next', ''))
 
@@ -493,6 +573,41 @@ def delete_user_route(user_id):
         abort(400)
     delete_user(user_id)
     return redirect(url_for('manage_users'))
+
+
+# Approval actions for the pharmacy application queue. Each maps to the new
+# pharmacy.status and the linked user status (kept in lock-step).
+_PHARMACY_STATUS_ACTIONS = {
+    'approve': ('active', 'active'),
+    'activate': ('active', 'active'),
+    'suspend': ('suspended', 'suspended'),
+    'reject': ('rejected', 'pending'),
+}
+
+
+@app.route('/settings/pharmacies')
+@admin_required
+def manage_pharmacies():
+    """Admin-only: every pharmacy account (or application), sorted with
+    pending applications first, with Approve/Suspend/Reject controls."""
+    return render_template(
+        'manage_pharmacies.html',
+        active_page='pharmacies',
+        pharmacies=get_pharmacies_with_applicant(),
+    )
+
+
+@app.route('/settings/pharmacies/<pharmacy_id>/<action>', methods=['POST'])
+@admin_required
+def pharmacy_action(pharmacy_id, action):
+    if action == 'delete':
+        delete_pharmacy_application(pharmacy_id)
+        return redirect(url_for('manage_pharmacies'))
+    if action not in _PHARMACY_STATUS_ACTIONS:
+        abort(404)
+    status, user_status = _PHARMACY_STATUS_ACTIONS[action]
+    update_pharmacy_status(pharmacy_id, status, user_status=user_status)
+    return redirect(url_for('manage_pharmacies'))
 
 @app.route('/movements/export')
 @login_required

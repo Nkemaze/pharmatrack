@@ -136,6 +136,147 @@ def update_pharmacy(pharmacy_id, **fields):
         conn.close()
 
 
+def create_pharmacy_registration(name, email, password, address=None, city=None,
+                                 phone=None, emergency_phone=None, opening_hours=None):
+    """Self-registered pharmacy application (hosted flow).
+
+    Creates a pending pharmacy tenant plus a pending pharmacist login for the
+    applicant. The account cannot sign in until an administrator approves the
+    application (which flips both statuses to 'active'). Returns the new
+    pharmacy id."""
+    import uuid
+    from werkzeug.security import generate_password_hash
+
+    name = str(name).strip()
+    email = str(email).strip()
+    if not name or not email:
+        raise ValueError("Pharmacy name and contact email are required.")
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters.")
+
+    conn = get_db_connection()
+    try:
+        pharmacy_id = str(uuid.uuid4())
+        conn.execute(
+            """INSERT INTO pharmacy
+               (id, name, address, city, phone, emergency_phone, opening_hours, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
+            (pharmacy_id, name, address, city, phone, emergency_phone, opening_hours)
+        )
+        user_id = str(uuid.uuid4())
+        conn.execute(
+            'INSERT INTO "user" (id, name, role, password_hash, pharmacy_id, status) '
+            "VALUES (?, ?, 'pharmacist', ?, ?, 'pending')",
+            (user_id, email, generate_password_hash(password), pharmacy_id)
+        )
+        conn.commit()
+        return pharmacy_id
+    finally:
+        conn.close()
+
+
+def get_pharmacies_with_applicant():
+    """Every pharmacy tenant with its first pharmacist applicant, sorted
+    pending-first - the data backing the admin's pharmacy management page."""
+    conn = get_db_connection()
+    try:
+        rows = conn.execute(
+            """SELECT p.id, p.name, p.address, p.city, p.phone,
+                      p.status, p.created_at,
+                      (SELECT u.name FROM "user" u
+                        WHERE u.pharmacy_id = p.id AND u.role = 'pharmacist'
+                        ORDER BY u.id LIMIT 1) AS applicant_name,
+                      (SELECT u.status FROM "user" u
+                        WHERE u.pharmacy_id = p.id AND u.role = 'pharmacist'
+                        ORDER BY u.id LIMIT 1) AS applicant_status
+               FROM pharmacy p
+               ORDER BY
+                 CASE p.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1
+                               WHEN 'suspended' THEN 2 ELSE 3 END,
+                 p.name"""
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_pending_pharmacy_count():
+    """Number of pharmacy applications awaiting approval."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM pharmacy WHERE status = 'pending'"
+        ).fetchone()
+    finally:
+        conn.close()
+    return row["n"] if row else 0
+
+
+def update_pharmacy_status(pharmacy_id, status, user_status=None):
+    """Sets a pharmacy's approval status. When user_status is given, every
+    account of that pharmacy is set to it at the same time - the admin's
+    Approve/Suspend/Reactivate controls stay in lock-step with the tenant."""
+    conn = get_db_connection()
+    try:
+        conn.execute("UPDATE pharmacy SET status = ? WHERE id = ?", (status, pharmacy_id))
+        if user_status is not None:
+            conn.execute(
+                'UPDATE "user" SET status = ? WHERE pharmacy_id = ?',
+                (user_status, pharmacy_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_pharmacy_application(pharmacy_id):
+    """Removes a pending/rejected application (its users and the pharmacy
+    row). Refuses to delete an active or suspended tenant that may hold
+    inventory. Returns True if the application was removed."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT status FROM pharmacy WHERE id = ?", (pharmacy_id,)
+        ).fetchone()
+        if row is None or row["status"] not in ("pending", "rejected"):
+            return False
+        conn.execute('DELETE FROM "user" WHERE pharmacy_id = ?', (pharmacy_id,))
+        conn.execute("DELETE FROM pharmacy WHERE id = ?", (pharmacy_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def login_status_block(user):
+    """Returns a displayable message if an account must stay signed out
+    (pending approval, suspended or rejected), else None. Used by both the
+    web /login route and the JSON API login so one rule gates both doorways.
+
+    The pharmacy tenant's status is the stronger signal and is checked first
+    so a rejected or suspended pharmacy gets that message even when its
+    applicant user account still carries a legacy 'pending' flag."""
+    status = (user or {}).get('status')
+    pharmacy_status = (user or {}).get('pharmacy_status')
+    if pharmacy_status == 'rejected':
+        return ('This pharmacy registration was not approved. '
+                'Contact your administrator.')
+    if status == 'rejected':
+        return ('This pharmacy registration was not approved. '
+                'Contact your administrator.')
+    if pharmacy_status == 'suspended':
+        return 'This account has been suspended. Contact your administrator.'
+    if status == 'suspended':
+        return 'This account has been suspended. Contact your administrator.'
+    if pharmacy_status == 'pending':
+        return ('Your pharmacy registration is awaiting approval. You will be '
+                'able to sign in once an administrator approves it.')
+    if status == 'pending':
+        return ('Your pharmacy registration is awaiting approval. You will be '
+                'able to sign in once an administrator approves it.')
+    return None
+
+
 def get_product_list(search=None, pharmacy_id=None):
     """
     Returns one row per product with:
@@ -972,7 +1113,11 @@ def authenticate_user(name, password):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        'SELECT id, name, role, password_hash, pharmacy_id, status FROM "user" WHERE name = ?',
+        """SELECT u.id, u.name, u.role, u.password_hash, u.pharmacy_id,
+                  u.status, ph.status AS pharmacy_status
+           FROM "user" u
+           LEFT JOIN pharmacy ph ON ph.id = u.pharmacy_id
+           WHERE u.name = ?""",
         (name,)
     )
     row = cur.fetchone()
@@ -983,7 +1128,8 @@ def authenticate_user(name, password):
     if not check_password_hash(row["password_hash"], password):
         return None
     return {"id": row["id"], "name": row["name"], "role": row["role"],
-            "pharmacy_id": row["pharmacy_id"], "status": row["status"]}
+            "pharmacy_id": row["pharmacy_id"], "status": row["status"],
+            "pharmacy_status": row["pharmacy_status"]}
 
 
 def delete_user(user_id):
