@@ -468,19 +468,19 @@ Remove Firebase; add config/base URL; rewrite `PharmacyService`; adapt `Drug`, `
   - [ ] Set `PHARMATRACK_ENV=production`, `JWT_SECRET_KEY`, `SECRET_KEY`, `CORS_ORIGINS` in Render env
   - [ ] Deploy and verify UI + API + Postgres connection on Render
 
-- [ ] **Phase 5 — Customer mobile app**
-  - [ ] Remove `firebase_core` and `cloud_firestore` from `pubspec.yaml`
-  - [ ] Remove Firebase init from `lib/main.dart`
-  - [ ] Create `lib/config.dart` with `API_BASE_URL` constant
-  - [ ] Rewrite `lib/services/pharmacy_service.dart` (Firestore → REST calls)
-  - [ ] Adapt `lib/models/drug.dart` to parse API JSON (snake_case fields)
-  - [ ] Adapt `lib/models/pharmacy.dart` to parse API JSON
-  - [ ] Adapt `lib/models/popular_drug.dart` to parse `/products/popular` response
-  - [ ] Add retry + offline fallback to `PharmacyService` (same style as `routing_service.dart`)
+- [x] **Phase 5 — Customer mobile app**
+  - [x] Remove `firebase_core` and `cloud_firestore` from `pubspec.yaml`
+  - [x] Remove Firebase init from `lib/main.dart`
+  - [x] Create `lib/config.dart` with `API_BASE_URL` constant
+  - [x] Rewrite `lib/services/pharmacy_service.dart` (Firestore → REST calls)
+  - [x] Adapt `lib/models/drug.dart` to parse API JSON (snake_case fields)
+  - [x] Adapt `lib/models/pharmacy.dart` to parse API JSON
+  - [x] Adapt `lib/models/popular_drug.dart` to parse `/products/popular` response
+  - [x] Add retry + offline fallback to `PharmacyService` (same style as `routing_service.dart`)
 
 - [ ] **Phase 5a — Android build setup**
-  - [ ] Remove `com.google.gms.google-services` plugin from `android/app/build.gradle.kts`
-  - [ ] Remove `google-services.json` from `android/app/`
+  - [x] Remove `com.google.gms.google-services` plugin from `android/app/build.gradle.kts` and `settings.gradle.kts`
+  - [x] Remove `google-services.json` from `android/app/`
   - [ ] Generate a release signing keystore (`keytool -genkey`)
   - [ ] Configure `signingConfigs.release` in `build.gradle.kts` using the keystore
   - [ ] Bump `versionName` / `versionCode` in `pubspec.yaml`
