@@ -14,8 +14,12 @@ It is a planning/research document. Nothing here has been implemented yet.
 | Component | Stack | Data source today |
 |---|---|---|
 | `pharmatrack/` | Flask + SQLite + pywebview + Tailwind | Local `pharmacy.db` |
+| `pharmatrack/` web UI (templates + static) | Flask + Tailwind, served by the app | Same database |
 | `customer_mobile_app/` | Flutter (Android/iOS/web) | Firebase Auth + Cloud Firestore |
-| `pharmacy_web_app/` | Flutter web | Firebase Auth + Cloud Firestore |
+
+> Note: the old `pharmacy_web_app/` directory no longer exists. The pharmacy UI
+> is now the Flask templates inside `pharmatrack/` (login, dashboard, products,
+> movements, loss reports, settings), served by the same process as the API.
 
 **PharmaTrack's API** (`/api/v1`) already exists and is JWT-protected (roles `admin`, `pharmacy`, `user`), but it was designed for a **single pharmacy's internal inventory**:
 
@@ -156,12 +160,113 @@ The customer app is login-free for browsing, so all discovery endpoints stay pub
 
 ## 6. Required Modifications — Hosting / Deployment
 
-New infrastructure files to add (not created yet):
+### 6.0 What PostgreSQL is going to be used for
 
-- `Dockerfile` — Python 3.10+ image, `pip install -r requirements.txt`, run `waitress-serve wsgi:app` (or gunicorn on Linux).
-- `docker-compose.yml` — app + PostgreSQL (+ Nginx optionally).
-- `.env.example` — `PHARMATRACK_ENV=production`, `SECRET_KEY`, `JWT_SECRET_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, token lifetimes.
-- Reverse proxy with TLS (Caddy/Nginx) for HTTPS.
+PostgreSQL is the **proposed replacement for SQLite** in production. The current
+app reads/writes one local `pharmacy.db` file. That works on a desktop, but not
+on a hosted multi-user server:
+
+- SQLite is a single write-lock file: concurrent pharmacies/clients serialize on
+  writes and it will bottleneck.
+- On serverless platforms the filesystem is **ephemeral** — a SQLite file written
+  during one request can vanish (or never be shared) on the next. Vercel
+  explicitly does **not** support SQLite (only read-only bundling is possible).
+- PostgreSQL is a real server database: concurrent connections, longer-lived,
+  and it is the storage backend both Vercel (via Neon) and Render offer natively.
+
+So the plan: keep SQLite for the local desktop app (fast, zero-setup), and point
+the hosted **API** at a managed PostgreSQL database via a `DATABASE_URL` env var.
+The schema/queries are ported once (see §3.4); each install chooses its engine.
+
+### 6.1 Hosting target: Render (API + PostgreSQL)
+
+**Render is the correct home for the Flask API and its database.**
+
+| Concern | Render |
+|---|---|
+| Flask long-running process | Yes — a Web Service runs `gunicorn wsgi:app` 24/7 |
+| SQLite survives? | Not needed — Render manages PostgreSQL |
+| Managed PostgreSQL | Yes, first-class (`New > PostgreSQL`), internal + external URLs, SSL |
+| Free tier | Web service (spins down when idle) + Postgres (expires after ~30 days) |
+| Deploy method | Git push, or `render.yaml` Blueprint (web + database + env vars in one file) |
+| Environment variables | Dashboard or Blueprint |
+
+Deployment shape (final state):
+
+```text
+Render
+├── PostgreSQL  (managed, DATABASE_URL auto-wired)
+└── Web Service → gunicorn wsgi:app   (serves BOTH the UI and /api/v1)
+    env: PHARMATRACK_ENV=production, JWT_SECRET_KEY, SECRET_KEY, CORS_ORIGINS
+```
+
+### 6.2 Hosting target: Render (only platform)
+
+**Everything runs on Render — no Vercel.**
+
+| Piece | Platform |
+|---|---|
+| `pharmatrack` web UI (templates) | Render Web Service |
+| Flask API (`/api/v1`) | Render Web Service (same process) |
+| PostgreSQL | Render Postgres |
+| `customer_mobile_app` APK download | Render Web Service (static route) |
+| `customer_mobile_app` web build | optional; same Render web service or right-click deploy later |
+
+The long-running Flask process and its DB stay on Render; nothing is split to
+another provider.
+
+### 6.3 Hosting the APK download link
+
+The customer app is distributed as a downloadable **APK served from Render**, so
+people install it directly from a link (no app store required).
+
+Build once, serve forever:
+
+```text
+flutter build apk --release
+→ build/app/outputs/flutter-apk/app-release.apk  (one-file, self-contained)
+```
+
+Delivered via the existing Flask app — add a small static route (e.g.
+`GET /download` and `GET /apk/latest`, or drop the file in `static/`):
+
+- Flask serves the APK with `send_file(..., as_attachment=True,
+  download_name="pharmafinder-vX.Y.Z.apk")`.
+- `Content-Disposition: attachment` forces a download; the link is shared as
+  `https://<render-url>/download`.
+- A tiny landing page (`/download`) on the pharmatrack UI shows the app name,
+  version, and a "Download Android App" button pointing at the APK.
+
+APK build notes:
+
+- **Signing** — `android/app/build.gradle.kts:35` currently signs releases with
+  the debug key. That's fine for a personal link, but for updates you must keep
+  the same key, or every install becomes a "different app".
+  - Preferred: generate a release keystore (`keytool -genkey ...`), configure
+    `signingConfigs.release`, use one `android/app/upload-keystore.jks`. Android
+    will then treat future builds as updates to the same app.
+- **Version** — set `versionName`/`versionCode` in `pubspec.yaml` and bump on
+  every rebuild so users get an update instead of a "reinstall".
+- **Targeting** — `minSdk = flutter.minSdkVersion` (default 21). Cover ~100% of
+  devices; only needed if offline-map/cache plugins require higher.
+- **APK size** — a release APK with offline maps + routing runs roughly
+  30–60 MB; on Render's free/Hobby web service disk that's fine. The render
+  service must not suspend while an APK download is in flight — a paid instance
+  (or `suspend` disabled) avoids mid-transfer drops.
+- **FlutterFire cleanup** — the Firebase Google Services plugin is still applied
+  in `android/app/build.gradle.kts:4`; remove it when Firebase is stripped from
+  the app (§7.1) and regenerate if needed.
+
+### 6.4 render.yaml (new infra files, not created yet)
+
+- `render.yaml` — Blueprint: web service (`gunicorn wsgi:app`) + managed Postgres
+  + env vars (`PHARMATRACK_ENV`, `JWT_SECRET_KEY`, `SECRET_KEY`, `CORS_ORIGINS`).
+- `.env.example` — same variables for local/docker use.
+- `requirements.txt` additions — `gunicorn`, `psycopg[binary]` (or SQLAlchemy),
+  `flask-cors`.
+- `scripts/build_apk.sh` — one command pipeline: `flutter build apk --release`,
+  copy the APK into `pharmatrack/static/` (or a versioned `downloads/` folder),
+  tag the version.
 
 Production environment variables:
 
@@ -170,10 +275,10 @@ Production environment variables:
 | `PHARMATRACK_ENV` | yes | `production` (app refuses to start otherwise) |
 | `JWT_SECRET_KEY` | yes | Persistent JWT signing secret |
 | `SECRET_KEY` | yes (new) | Persistent session cookie secret |
-| `DATABASE_URL` | yes (new) | Postgres connection string |
+| `DATABASE_URL` | yes (new, on Render) | Postgres connection string |
 | `JWT_ACCESS_TOKEN_MINUTES` | no | Default 30 |
 | `JWT_REFRESH_TOKEN_DAYS` | no | Default 30 |
-| `CORS_ORIGINS` | no | Comma-separated allowed origins |
+| `CORS_ORIGINS` | no | Comma-separated allowed origins (customer Flutter app builds) |
 
 ---
 
@@ -289,7 +394,7 @@ Add JWT `pharmacy_id` claim; scope existing endpoints; add `/pharmacies`, `/phar
 Point Settings at the `pharmacy` row; persistent `SECRET_KEY`; CORS; DB-backed rate limiting.
 
 **Phase 4 — Hosting**
-Move to PostgreSQL; Dockerfile + compose; reverse proxy + HTTPS; env config.
+Create `render.yaml` Blueprint (Web Service + managed Postgres + env vars); port queries to PostgreSQL (`DATABASE_URL`); deploy the whole `pharmatrack` app (UI + API) to **Render**; configure `CORS_ORIGINS`; add `/download` route; build the APK and host it on Render for direct download.
 
 **Phase 5 — Customer app**
 Remove Firebase; add config/base URL; rewrite `PharmacyService`; adapt `Drug`, `Pharmacy`, `PopularDrug` models; keep cache/offline behavior.
@@ -308,3 +413,66 @@ Remove Firebase; add config/base URL; rewrite `PharmacyService`; adapt `Drug`, `
 3. **Exact stock** — the customer app previously showed "in stock / out of stock" only (it used `quantity > 0`), so hiding exact counts via the public API is acceptable. Confirm.
 4. **Images** — PharmaTrack has no image hosting; adding `image_url` assumes images are uploaded elsewhere (Cloudinary/S3) and URLs stored.
 5. **Currency** — the app displays FCFA; prices should be stored in FCFA.
+
+---
+
+## 11. TODO Checklist
+
+- [ ] **Phase 1 — Schema (PharmaTrack)**
+  - [ ] Add `pharmacy` table to `database/schema.sql`
+  - [ ] Add `pharmacy_id`, `price_per_unit`, `price_per_packet`, `packet_size`, `unit_label`, `image_url` columns to `product` table
+  - [ ] Write migrations in `database/db.py:_run_migrations()` for the new columns/table
+  - [ ] Seed a default pharmacy and assign existing products to it
+
+- [ ] **Phase 2 — API (PharmaTrack)**
+  - [ ] Add `pharmacy_id` to JWT claims (`api/auth.py`)
+  - [ ] Scope all existing product/movement/report endpoints by `pharmacy_id`
+  - [ ] Add `GET /api/v1/pharmacies` (list active pharmacies, public)
+  - [ ] Add `GET /api/v1/pharmacies/<id>` (single pharmacy, public)
+  - [ ] Add `GET /api/v1/pharmacies/<id>/products` (pharmacy's product list, public)
+  - [ ] Add `GET /api/v1/products/search?q=` (cross-pharmacy search, public)
+  - [ ] Add `GET /api/v1/products/popular` (popular medicines aggregation, public)
+  - [ ] Extend `GET /api/v1/products` to include prices, images, and pharmacy name
+
+- [ ] **Phase 3 — Web app (PharmaTrack)**
+  - [ ] Update Settings page to write the new `pharmacy` table fields (city, phone, hours, status)
+  - [ ] Set `SECRET_KEY` from env var instead of `os.urandom(32)`
+  - [ ] Add Flask-CORS with configurable allowed origins
+  - [ ] Move login rate limiter from in-memory to database-backed
+
+- [ ] **Phase 4 — Hosting / Deployment (Render)**
+  - [ ] Create `render.yaml` Blueprint (web service + managed Postgres + env vars)
+  - [ ] Create `.env.example` with all required production variables
+  - [ ] Add `gunicorn`, `psycopg[binary]`, `flask-cors` to `requirements.txt`
+  - [ ] Port all SQLite queries to PostgreSQL-compatible SQL (`ILIKE` etc.)
+  - [ ] Add `GET /download` route + landing page for APK download
+  - [ ] Add `GET /apk/latest` route serving the latest APK from `static/`
+  - [ ] Set `PHARMATRACK_ENV=production`, `JWT_SECRET_KEY`, `SECRET_KEY`, `CORS_ORIGINS` in Render env
+  - [ ] Deploy and verify UI + API + Postgres connection on Render
+
+- [ ] **Phase 5 — Customer mobile app**
+  - [ ] Remove `firebase_core` and `cloud_firestore` from `pubspec.yaml`
+  - [ ] Remove Firebase init from `lib/main.dart`
+  - [ ] Create `lib/config.dart` with `API_BASE_URL` constant
+  - [ ] Rewrite `lib/services/pharmacy_service.dart` (Firestore → REST calls)
+  - [ ] Adapt `lib/models/drug.dart` to parse API JSON (snake_case fields)
+  - [ ] Adapt `lib/models/pharmacy.dart` to parse API JSON
+  - [ ] Adapt `lib/models/popular_drug.dart` to parse `/products/popular` response
+  - [ ] Add retry + offline fallback to `PharmacyService` (same style as `routing_service.dart`)
+
+- [ ] **Phase 5a — Android build setup**
+  - [ ] Remove `com.google.gms.google-services` plugin from `android/app/build.gradle.kts`
+  - [ ] Remove `google-services.json` from `android/app/`
+  - [ ] Generate a release signing keystore (`keytool -genkey`)
+  - [ ] Configure `signingConfigs.release` in `build.gradle.kts` using the keystore
+  - [ ] Bump `versionName` / `versionCode` in `pubspec.yaml`
+  - [ ] Run `flutter build apk --release`
+  - [ ] Copy APK into `pharmatrack/static/downloads/` or commit to repo
+
+- [ ] **Phase 6 — Verification**
+  - [ ] PharmaTrack existing unit tests still pass (`python -m unittest discover -s tests -v`)
+  - [ ] New API endpoints covered by tests (auth scoping, public stock safety)
+  - [ ] `flutter analyze` clean — no errors
+  - [ ] Manual end-to-end: download APK → install → search drugs → list pharmacies → open detail → get directions, all against the hosted API
+  - [ ] Verify CORS headers on API responses from a browser
+  - [ ] Verify login, product management, and movement recording on hosted web UI
