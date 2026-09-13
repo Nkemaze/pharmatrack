@@ -23,7 +23,7 @@ from database.queries import (
     get_all_movements_for_export, is_token_revoked,
     get_pharmacy, update_pharmacy, get_pharmacies,
     login_attempt_lockout, record_login_attempt, clear_login_attempts,
-    create_pharmacy_registration, get_pharmacies_with_applicant,
+    create_pharmacy_registration, create_pharmacy_account, get_pharmacies_with_applicant,
     get_pending_pharmacy_count, update_pharmacy_status,
     delete_pharmacy_application, login_status_block,
 )
@@ -738,6 +738,57 @@ def manage_pharmacies():
         'manage_pharmacies.html',
         active_page='pharmacies',
         pharmacies=get_pharmacies_with_applicant(),
+    )
+
+
+@app.route('/settings/pharmacies/add', methods=['POST'])
+@admin_required
+def add_pharmacy():
+    """Admin-provisioned pharmacy account (mirrors the Flutter dialog):
+    name + contact email + a temporary password.  The new pharmacy is
+    'active' immediately - no application step."""
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '')
+
+    error = None
+    if not name or not email:
+        error = "Pharmacy name and contact email are required."
+    elif '@' not in email:
+        error = "Enter a valid contact email address."
+    elif len(password) < 8:
+        error = "Password must be at least 8 characters."
+    elif user_name_exists(email):
+        error = f"A login with {email} already exists. Use a different email."
+    else:
+        try:
+            create_pharmacy_account(
+                name=name,
+                email=email,
+                password=password,
+                address=request.form.get('address', '').strip() or None,
+                city=request.form.get('city', '').strip() or None,
+                phone=request.form.get('phone', '').strip() or None,
+            )
+        except Exception:
+            app.logger.exception('Admin-provisioned pharmacy creation failed')
+            error = ('We could not create the pharmacy account right now. '
+                     'Please try again in a moment.')
+        else:
+            return render_template(
+                'manage_pharmacies.html',
+                active_page='pharmacies',
+                pharmacies=get_pharmacies_with_applicant(),
+                success=(f"Pharmacy account created. Credentials for "
+                         f"{email} are ready to share."),
+            )
+
+    return render_template(
+        'manage_pharmacies.html',
+        active_page='pharmacies',
+        pharmacies=get_pharmacies_with_applicant(),
+        error=error,
+        form=request.form,
     )
 
 

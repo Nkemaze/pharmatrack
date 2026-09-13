@@ -13,7 +13,23 @@
             <p class="font-body-md text-on-surface-variant">Create and manage pharmacy accounts across the PharmaTrack
                 network. Pending applications cannot sign in until you approve them.</p>
         </div>
+        <button type="button" id="add-pharmacy-open"
+            class="bg-secondary text-on-secondary font-label-bold text-label-bold px-5 py-2.5 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 font-semibold">
+            <span class="material-symbols-outlined">add</span> Add Pharmacy
+        </button>
     </div>
+
+    {% if success %}
+    <div class="mb-5 px-4 py-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg text-body-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">check_circle</span>
+        {{ success }}
+    </div>
+    {% elif error %}
+    <div class="mb-5 px-4 py-3 bg-error/10 text-error rounded-lg text-body-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">error</span>
+        {{ error }}
+    </div>
+    {% endif %}
 
     {% set pending = pharmacies | selectattr('status', 'equalto', 'pending') | list %}
     {% if pending %}
@@ -129,6 +145,56 @@
         </table>
     </div>
     {% endif %}
+</div>
+
+<!-- Add Pharmacy dialog (mirrors the Flutter dialog: name, email, temporary password) -->
+<div id="add-pharmacy-dialog" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="add-pharmacy-title">
+    <div class="absolute inset-0 bg-black/40" data-dialog-close></div>
+    <div class="relative bg-surface-container-lowest border border-outline-variant rounded-xl w-full max-w-lg mx-auto mt-16 shadow-lg">
+        <div class="px-6 py-4 border-b border-outline-variant flex items-start justify-between bg-surface-container-low rounded-t-xl">
+            <div>
+                <h3 id="add-pharmacy-title" class="font-headline-md text-headline-md text-on-surface">Add Pharmacy</h3>
+                <p class="text-body-sm text-on-surface-variant mt-0.5">Create a pharmacy account with temporary credentials</p>
+            </div>
+            <button type="button" data-dialog-close class="text-on-surface-variant hover:text-on-surface p-1" aria-label="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('add_pharmacy') }}" class="p-6 space-y-4" autocomplete="off">
+            <div>
+                <label class="font-label-bold text-label-bold text-on-surface uppercase block mb-1.5" for="ph-name">Pharmacy Name</label>
+                <input id="ph-name" name="name" required maxlength="120" placeholder="e.g. City Care Pharmacy"
+                    value="{{ form.name if form and form.get('name') else request.args.get('name', '') }}"
+                    class="w-full px-3.5 py-2 bg-surface-container-low border border-outline-variant rounded-lg focus:outline-none focus:ring-1 focus:ring-secondary" />
+            </div>
+            <div>
+                <label class="font-label-bold text-label-bold text-on-surface uppercase block mb-1.5" for="ph-email">Email Address</label>
+                <input id="ph-email" name="email" type="email" required maxlength="256" placeholder="pharmacy@pharmatrack.com"
+                    value="{{ form.email if form and form.get('email') else request.args.get('email', '') }}"
+                    class="w-full px-3.5 py-2 bg-surface-container-low border border-outline-variant rounded-lg focus:outline-none focus:ring-1 focus:ring-secondary" />
+            </div>
+            <div>
+                <label class="font-label-bold text-label-bold text-on-surface uppercase block mb-1.5" for="ph-password">Temporary Password</label>
+                <div class="flex gap-2">
+                    <input id="ph-password" name="password" type="text" required minlength="8" placeholder="min. 8 characters"
+                        value="{{ form.password if form and form.get('password') }}"
+                        class="flex-grow px-3.5 py-2 bg-surface-container-low border border-outline-variant rounded-lg focus:outline-none focus:ring-1 focus:ring-secondary" />
+                    <button type="button" id="generate-password"
+                        class="px-3 py-2 border border-outline-variant rounded-lg text-body-sm font-label-bold text-on-surface hover:bg-surface-container-low flex items-center gap-1 shrink-0">
+                        <span class="material-symbols-outlined text-base">casino</span> Generate
+                    </button>
+                </div>
+                <p class="text-body-sm text-on-surface-variant mt-1.5">After creation, share the email and temporary password
+                    with the pharmacy. They can change it later.</p>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" data-dialog-close
+                    class="px-4 py-2 border border-outline-variant rounded-lg text-body-sm text-on-surface hover:bg-surface-container-low">Cancel</button>
+                <button type="submit"
+                    class="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-body-sm font-label-bold font-semibold hover:opacity-90">Create Account</button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
 

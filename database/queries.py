@@ -148,6 +148,42 @@ def update_pharmacy(pharmacy_id, **fields):
         conn.close()
 
 
+def create_pharmacy_account(name, email, password, address=None, city=None, phone=None):
+    """Admin-provisioned pharmacy: creates an active pharmacy tenant plus
+    an active pharmacist login.  The admin shares the email / password with
+    the pharmacy.  Returns the new pharmacy id."""
+    import uuid
+    from werkzeug.security import generate_password_hash
+
+    name = str(name).strip()
+    email = str(email).strip()
+    if not name or not email:
+        raise ValueError("Pharmacy name and contact email are required.")
+    if '@' not in email:
+        raise ValueError("Enter a valid contact email address.")
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters.")
+
+    conn = get_db_connection()
+    try:
+        pharmacy_id = str(uuid.uuid4())
+        conn.execute(
+            """INSERT INTO pharmacy (id, name, address, city, phone, status)
+               VALUES (?, ?, ?, ?, ?, 'active')""",
+            (pharmacy_id, name, address or None, city or None, phone or None),
+        )
+        user_id = str(uuid.uuid4())
+        conn.execute(
+            'INSERT INTO "user" (id, name, role, password_hash, pharmacy_id, status) '
+            "VALUES (?, ?, 'pharmacist', ?, ?, 'active')",
+            (user_id, email, generate_password_hash(password), pharmacy_id),
+        )
+        conn.commit()
+        return pharmacy_id
+    finally:
+        conn.close()
+
+
 def create_pharmacy_registration(name, email, password, address=None, city=None,
                                  phone=None, emergency_phone=None, opening_hours=None):
     """Self-registered pharmacy application (hosted flow).

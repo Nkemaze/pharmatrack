@@ -416,5 +416,88 @@ class ExpiryRegressionTest(unittest.TestCase):
         self.assertIn(b"Dashboard", r.data)
 
 
+class AdminAddPharmacyTest(unittest.TestCase):
+    """The admin-provisioned pharmacy flow: an admin creates a pharmacy
+    account directly (name + email + temporary password), and it is usable
+    immediately without an application step."""
+
+    password = "Correct-Horse-Battery-9"
+
+    def setUp(self):
+        self.client = app.test_client()
+        conn = get_db_connection()
+        try:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            for table in ("token_blocklist", "login_attempt", "loss_report",
+                          "stock_movement", "product_batch", "product",
+                          "settings", "user", "pharmacy"):
+                conn.execute(f"DELETE FROM {table}")
+            conn.commit()
+        finally:
+            conn.close()
+        create_user("AdminUser", "admin", self.password)
+
+    def _login_admin(self):
+        r = self.client.post("/login", data={"name": "AdminUser", "password": self.password})
+        self.assertEqual(r.status_code, 302)
+
+    def test_add_pharmacy_creates_active_account(self):
+        self._login_admin()
+        r = self.client.post("/settings/pharmacies/add", data={
+            "name": "Harbor Pharmacy",
+            "email": "harbor@example.com",
+            "password": "Temporary-Pass-9",
+            "city": "Lagos",
+        })
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn("Pharmacy account created", body)
+        self.assertIn("Harbor Pharmacy", body)
+
+        # It is active immediately: the pharmacist login works on the web
+        # login (no pending block), unlike the self-registration flow.
+        login = self.client.post(
+            "/login",
+            data={"name": "harbor@example.com", "password": "Temporary-Pass-9"},
+            follow_redirects=False,
+        )
+        self.assertEqual(login.status_code, 302)
+
+    def test_add_pharmacy_rejects_duplicate_email(self):
+        self._login_admin()
+        r = self.client.post("/settings/pharmacies/add", data={
+            "name": "Harbor Pharmacy",
+            "email": "harbor@example.com",
+            "password": "Temporary-Pass-9",
+        })
+        self.assertEqual(r.status_code, 200)
+        r2 = self.client.post("/settings/pharmacies/add", data={
+            "name": "Harbor Second",
+            "email": "harbor@example.com",
+            "password": "Another-Pass-9",
+        })
+        self.assertEqual(r2.status_code, 200)
+        self.assertIn("already exists", r2.get_data(as_text=True))
+
+    def test_add_pharmacy_requires_admin(self):
+        r = self.client.post("/settings/pharmacies/add", data={
+            "name": "Sneaky Pharmacy",
+            "email": "sneaky@example.com",
+            "password": "Temporary-Pass-9",
+        })
+        # Anonymous is redirected to the login page, not allowed to create.
+        self.assertIn(r.status_code, (302, 401, 403))
+
+    def test_add_pharmacy_short_password_rejected(self):
+        self._login_admin()
+        r = self.client.post("/settings/pharmacies/add", data={
+            "name": "Short Pass Pharmacy",
+            "email": "shortpass@example.com",
+            "password": "short",
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("at least 8 characters", r.get_data(as_text=True))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
