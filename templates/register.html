@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>PharmaTrack - Register</title>
+    <title>Create your account &middot; PharmaTrack</title>
     <script>
         (function () {
             if (localStorage.getItem('pharmatrack-theme') === 'dark') {
@@ -13,7 +13,7 @@
         })();
     </script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap"
         rel="stylesheet" />
     <link
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
@@ -21,263 +21,391 @@
     <script id="tailwind-config" src="{{ url_for('static', filename='tailwind-config.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        body {
-            min-height: 100vh;
-        }
-
-        .login-shell {
-            min-height: 100vh;
-            display: grid;
-            grid-template-columns: 1fr;
-            place-items: center;
-            background: linear-gradient(135deg, var(--color-primary-container) 0%, var(--color-background) 100%);
-            padding: 24px 0;
-        }
-    </style>
 </head>
 
-<body class="bg-background text-on-surface">
-    <div class="login-shell px-6">
-        <div class="w-full {{ 'max-w-md' if is_hosted and not success else 'max-w-sm' }}">
+<body>
+    <div class="auth-shell">
 
-            <div class="text-center mb-8">
-                <!--
-  LOGO SLOT: drop your logo file into static/logo.png (or update the
-  filename below to match). Falls back to a plain icon automatically
-  if the file isn't there yet, so nothing breaks either way.
--->
+        <!-- Brand panel -->
+        <aside class="auth-brand">
+            <div>
+                <div class="auth-brand-logo">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-white/10 border border-white/15 grid place-items-center">
+                        <span class="material-symbols-outlined text-lg" style="color:#8fb6ff;">medication</span>
+                    </div>
+                    PharmaTrack
+                </div>
+
+                <div style="margin-top:64px;">
+                    <h1>Get your pharmacy on PharmaTrack.</h1>
+                    <p class="auth-tagline">Apply in a couple of minutes &mdash; an administrator reviews and
+                        approves your account before you start.</p>
+
+                    <div class="auth-brand-features">
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">assignment_turned_in</span>
+                            <div class="text">
+                                <b>Fast application</b>
+                                <span>Just your pharmacy details &mdash; no long forms.</span>
+                            </div>
+                        </div>
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">verified_user</span>
+                            <div class="text">
+                                <b>Reviewed by an administrator</b>
+                                <span>Every pharmacy is approved before it goes live.</span>
+                            </div>
+                        </div>
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">auto_awesome</span>
+                            <div class="text">
+                                <b>Ready when you are</b>
+                                <span>Once approved, sign in and start managing stock.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="auth-brand-foot">&copy; PharmaTrack &middot; Secure inventory management</p>
+        </aside>
+
+        <!-- Form panel -->
+        <main class="auth-form">
+            <div class="auth-form-inner">
+
+                <div class="lg:hidden flex items-center justify-center gap-2.5 mb-8">
+                    <div
+                        class="w-9 h-9 rounded-xl bg-white border border-outline-variant grid place-items-center">
+                        <span class="material-symbols-outlined text-on-surface text-lg">medication</span>
+                    </div>
+                    <span class="font-display text-display text-on-surface">PharmaTrack</span>
+                </div>
+
+                <div class="mb-6 text-center lg:text-left">
+                    {% if success %}
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Application received</h2>
+                    <p class="text-body-md text-on-surface-variant mt-1">Here&rsquo;s what happens next</p>
+                    {% elif admin_taken and is_hosted %}
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Join PharmaTrack</h2>
+                    <p class="text-body-md text-on-surface-variant mt-1">Apply to open a pharmacy account</p>
+                    {% elif not admin_taken and is_hosted %}
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Let&rsquo;s set you up</h2>
+                    <p class="text-body-md text-on-surface-variant mt-1">
+                        No administrator registered yet &mdash; begin here.</p>
+                    {% else %}
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Create your account</h2>
+                    <p class="text-body-md text-on-surface-variant mt-1">Join this pharmacy&rsquo;s workspace</p>
+                    {% endif %}
+                </div>
+
+                {% if error %}
                 <div
-                    class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mx-auto mb-4 overflow-hidden relative border border-outline-variant">
-                    <span id="logo-fallback-register" class="material-symbols-outlined text-secondary"
-                        style="font-size: 28px;">medication</span>
-                    <img src="{{ url_for('static', filename='logo.png') }}" alt="Pharmacy logo"
-                        class="absolute inset-0 w-full h-full object-contain p-1" style="display:none;"
-                        onload="this.style.display='block'; document.getElementById('logo-fallback-register').style.display='none';"
-                        onerror="this.style.display='none';">
+                    class="mb-5 px-4 py-3 bg-error-container text-on-error-container rounded-xl text-body-sm flex items-start gap-2.5">
+                    <span class="material-symbols-outlined text-base mt-0.5">error</span>
+                    <span>{{ error }}</span>
                 </div>
-                <h1 class="font-headline-md text-headline-md font-bold text-on-surface">PharmaTrack</h1>
-                <p class="font-body-sm text-on-surface-variant mt-1">{% if is_hosted %}Register your pharmacy{% else
-                    %}Create your account{% endif %}</p>
-            </div>
-
-            {% if error %}
-            <div
-                class="mb-5 px-4 py-3 bg-error-container text-on-error-container rounded-lg text-body-sm flex items-center gap-2">
-                <span class="material-symbols-outlined text-base">error</span>
-                {{ error }}
-            </div>
-            {% endif %}
-
-            {% if success %}
-            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
-                <div class="flex items-start gap-3">
-                    <span class="material-symbols-outlined text-secondary mt-0.5">check_circle</span>
-                    <p class="font-body-md text-on-surface">{{ success }}</p>
-                </div>
-                <a href="{{ url_for('login') }}"
-                    class="mt-6 block w-full text-center py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
-                    Sign in
-                </a>
-            </div>
-
-            {% elif is_hosted %}
-
-            {% if not admin_taken %}
-            <div class="mb-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
-                <p class="font-label-bold text-label-bold text-on-surface uppercase tracking-wide mb-1">No administrator
-                    yet</p>
-                <p class="font-body-sm text-on-surface-variant mb-4">You are setting up this platform for the first
-                    time. Create the administrator account first &mdash; after that, registrations here are pharmacy
-                    applications for you to approve.</p>
-                <form method="POST" class="space-y-4">
-                    <input type="hidden" name="role" value="admin">
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Administrator name</label>
-                        <input class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                            type="text" name="name" autocomplete="username" required autofocus>
-                    </div>
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Password</label>
-                        <input class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                            type="password" name="password" minlength="8" autocomplete="new-password" required>
-                    </div>
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Confirm Password</label>
-                        <input class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                            type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
-                    </div>
-                    <button type="submit"
-                        class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
-                        Create Administrator
-                    </button>
-                </form>
-            </div>
-            {% endif %}
-
-            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
-                {% if admin_taken %}
-                <p class="text-center font-body-sm text-on-surface-variant mb-5">Applications are reviewed and approved
-                    by the administrator. You will be able to sign in once your pharmacy is approved.</p>
-                {% else %}
-                <p class="text-center font-body-sm text-on-surface-variant mb-5">Register your pharmacy to apply for
-                    access. An administrator will review and approve your application.</p>
                 {% endif %}
 
-                <form method="POST" class="space-y-5">
-                    <input type="hidden" name="role" value="pharmacy">
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Pharmacy name</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">store</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="text" name="pharmacy_name" required>
+                {% if success %}
+                <div class="auth-card p-7">
+                    <div class="flex flex-col items-center text-center gap-4 py-2">
+                        <div
+                            class="w-16 h-16 rounded-2xl bg-secondary/10 border border-secondary/30 grid place-items-center">
+                            <span class="material-symbols-outlined text-secondary" style="font-size:32px;">check_circle</span>
                         </div>
+                        <p class="text-body-md text-on-surface leading-relaxed">{{ success }}</p>
+                        <a href="{{ url_for('login') }}"
+                            class="mt-2 w-full py-3.5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm text-center">
+                            Sign in
+                        </a>
                     </div>
+                </div>
 
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Contact email (your
-                            login)</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">mail</span>
+                {% elif is_hosted %}
+
+                {% if not admin_taken %}
+                <div
+                    class="mb-6 rounded-2xl border border-secondary/30 bg-surface-container-low p-6">
+                    <div class="flex items-center gap-2.5 mb-2.5">
+                        <span class="material-symbols-outlined text-secondary">admin_panel_settings</span>
+                        <h3 class="text-label-bold font-label-bold text-on-surface uppercase tracking-wide">
+                            First-time setup</h3>
+                    </div>
+                    <p class="text-body-sm text-on-surface-variant mb-5 leading-relaxed">
+                        You are setting up this platform for the first time. Create the administrator account
+                        &mdash; afterwards, registrations here are pharmacy applications for you to approve.
+                    </p>
+                    <form method="POST" class="space-y-4" data-submit-spinner>
+                        <input type="hidden" name="role" value="admin">
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Administrator name
+                            </label>
                             <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="email" name="email" autocomplete="username" required>
+                                class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                type="text" name="name" autocomplete="username" placeholder="e.g. Platform Admin"
+                                required autofocus>
                         </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Address</label>
-                        <input
-                            class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                            type="text" name="address">
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <label class="block font-label-bold text-label-bold text-on-surface">City</label>
-                            <input
-                                class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="text" name="city">
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Password
+                            </label>
+                            <div class="relative">
+                                <input data-pw-toggle
+                                    class="w-full px-4 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="password" minlength="8" autocomplete="new-password"
+                                    placeholder="At least 8 characters" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
                         </div>
-                        <div class="space-y-2">
-                            <label class="block font-label-bold text-label-bold text-on-surface">Phone</label>
-                            <input
-                                class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="tel" name="phone">
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Confirm password
+                            </label>
+                            <div class="relative">
+                                <input data-pw-toggle
+                                    class="w-full px-4 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="confirm_password" minlength="8" autocomplete="new-password"
+                                    placeholder="Repeat your password" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
                         </div>
+                        <button type="submit" data-spinner
+                            class="w-full py-3.5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm">
+                            Create Administrator
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
+                <div class="auth-card p-7">
+                    {% if admin_taken %}
+                    <div
+                        class="mb-5 px-4 py-3 bg-secondary-fixed/40 text-on-secondary-fixed rounded-xl text-body-sm leading-relaxed">
+                        Applications are reviewed and approved by an administrator. You will be able to sign in
+                        once your pharmacy is approved.
                     </div>
+                    {% endif %}
 
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Password</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="password" name="password" minlength="8" autocomplete="new-password" required>
-                        </div>
-                        <p class="text-body-sm text-on-surface-variant">At least 8 characters.</p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Confirm Password</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="password" name="confirm_password" minlength="8" autocomplete="new-password"
-                                required>
-                        </div>
-                    </div>
-
-                    <button type="submit"
-                        class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm">
-                        Submit Application
-                    </button>
-                </form>
-            </div>
-
-            {% else %}
-            {# Desktop / single-pharmacy station: create a local account. #}
-            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
-
-                <form method="POST" class="space-y-5">
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Name</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">person</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="text" name="name" autocomplete="username" required autofocus>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Password</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="password" name="password" minlength="8" autocomplete="new-password" required>
-                        </div>
-                        <p class="text-body-sm text-on-surface-variant">At least 8 characters.</p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Confirm Password</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="password" name="confirm_password" minlength="8" autocomplete="new-password"
-                                required>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Role</label>
-                        <select
-                            class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                            name="role">
-                            <option value="pharmacist">Pharmacist</option>
-                            {% if not admin_taken %}
-                            <option value="admin">Admin</option>
-                            {% endif %}
-                        </select>
-                        {% if admin_taken %}
-                        <p class="text-body-sm text-on-surface-variant">This pharmacy already has an admin account. New
-                            sign-ups are pharmacists.</p>
-                        {% else %}
-                        <p class="text-body-sm text-on-surface-variant">No admin exists yet — registering as Admin makes
-                            you the pharmacy's one administrator.</p>
+                    <div class="mb-5">
+                        <h3 class="flex items-center gap-2 text-label-bold font-label-bold text-on-surface uppercase tracking-wide">
+                            <span class="material-symbols-outlined text-on-surface-variant text-lg">storefront</span>
+                            Pharmacy application
+                        </h3>
+                        {% if not admin_taken %}
+                        <p class="text-body-sm text-on-surface-variant mt-1">Prefer to join an existing workspace?
+                            Create the administrator account above first.</p>
                         {% endif %}
                     </div>
 
-                    <button type="submit"
-                        class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm">
-                        Create Account
-                    </button>
-                </form>
+                    <form method="POST" class="space-y-4" data-submit-spinner>
+                        <input type="hidden" name="role" value="pharmacy">
 
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Pharmacy name
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">store</span>
+                                <input
+                                    class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="text" name="pharmacy_name" placeholder="e.g. CityCare Pharmacy" required>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Contact email <span class="text-on-surface-variant font-normal">(your login)</span>
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">mail</span>
+                                <input
+                                    class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="email" name="email" autocomplete="username" placeholder="you@pharmacy.com"
+                                    required>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Address
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">location_on</span>
+                                <input
+                                    class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="text" name="address" placeholder="Street, area">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                    City
+                                </label>
+                                <input
+                                    class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="text" name="city" placeholder="City">
+                            </div>
+                            <div>
+                                <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                    Phone
+                                </label>
+                                <input
+                                    class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="tel" name="phone" placeholder="e.g. 6 00 00 00 00">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Password
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">lock</span>
+                                <input data-pw-toggle
+                                    class="w-full pl-11 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="password" minlength="8" autocomplete="new-password"
+                                    placeholder="At least 8 characters" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Confirm password
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">lock</span>
+                                <input data-pw-toggle
+                                    class="w-full pl-11 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="confirm_password" minlength="8" autocomplete="new-password"
+                                    placeholder="Repeat your password" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" data-spinner
+                            class="w-full py-3.5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm mt-1">
+                            Submit Application
+                        </button>
+                    </form>
+                </div>
+
+                {% else %}
+                {# Desktop / single-pharmacy station: create a local account. #}
+                <div class="auth-card p-7">
+                    <form method="POST" class="space-y-4" data-submit-spinner>
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Name
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">person</span>
+                                <input
+                                    class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="text" name="name" autocomplete="username" placeholder="Your name"
+                                    required autofocus>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Password
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">lock</span>
+                                <input data-pw-toggle
+                                    class="w-full pl-11 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="password" minlength="8" autocomplete="new-password"
+                                    placeholder="At least 8 characters" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Confirm password
+                            </label>
+                            <div class="relative">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">lock</span>
+                                <input data-pw-toggle
+                                    class="w-full pl-11 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="confirm_password" minlength="8" autocomplete="new-password"
+                                    placeholder="Repeat your password" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Role
+                            </label>
+                            <select
+                                class="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                name="role">
+                                <option value="pharmacist">Pharmacist</option>
+                                {% if not admin_taken %}
+                                <option value="admin">Admin</option>
+                                {% endif %}
+                            </select>
+                            {% if admin_taken %}
+                            <p class="text-body-sm text-on-surface-variant mt-1.5">This pharmacy already has an admin
+                                account. New sign-ups are pharmacists.</p>
+                            {% else %}
+                            <p class="text-body-sm text-on-surface-variant mt-1.5">No admin exists yet &mdash;
+                                registering as Admin makes you the pharmacy&rsquo;s one administrator.</p>
+                            {% endif %}
+                        </div>
+
+                        <button type="submit" data-spinner
+                            class="w-full py-3.5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm mt-1">
+                            Create Account
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% if not success %}
+                <p class="text-center text-body-sm text-on-surface-variant mt-6">
+                    Already have an account?
+                    <a href="{{ url_for('login') }}"
+                        class="text-secondary font-label-bold hover:underline">Sign in</a>
+                </p>
+                {% endif %}
             </div>
-            {% endif %}
-
-            <p class="text-center text-body-sm text-on-surface-variant mt-6">
-                Already have an account? <a href="{{ url_for('login') }}"
-                    class="text-secondary font-label-bold hover:underline">Sign in</a>
-            </p>
-
-        </div>
+        </main>
     </div>
+
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
 </body>
 
 </html>

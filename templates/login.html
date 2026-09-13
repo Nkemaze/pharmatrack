@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>PharmaTrack - Sign In</title>
+    <title>Sign in &middot; PharmaTrack</title>
     <script>
         (function () {
             if (localStorage.getItem('pharmatrack-theme') === 'dark') {
@@ -13,7 +13,7 @@
         })();
     </script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap"
         rel="stylesheet" />
     <link
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
@@ -21,94 +21,146 @@
     <script id="tailwind-config" src="{{ url_for('static', filename='tailwind-config.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        body {
-            min-height: 100vh;
-        }
-
-        .login-shell {
-            min-height: 100vh;
-            display: grid;
-            grid-template-columns: 1fr;
-            place-items: center;
-            background: linear-gradient(135deg, var(--color-primary-container) 0%, var(--color-background) 100%);
-        }
-    </style>
 </head>
 
-<body class="bg-background text-on-surface">
-    <div class="login-shell px-6">
-        <div class="w-full max-w-sm">
+<body>
+    <div class="auth-shell">
 
-            <div class="text-center mb-8">
-                <!--
-  LOGO SLOT: drop your logo file into static/logo.png (or update the
-  filename below to match). Falls back to a plain icon automatically
-  if the file isn't there yet, so nothing breaks either way.
--->
-                <div
-                    class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mx-auto mb-4 overflow-hidden relative border border-outline-variant">
-                    <span id="logo-fallback-login" class="material-symbols-outlined text-secondary"
-                        style="font-size: 28px;">medication</span>
-                    <img src="{{ url_for('static', filename='logo.png') }}" alt="Pharmacy logo"
-                        class="absolute inset-0 w-full h-full object-contain p-1" style="display:none;"
-                        onload="this.style.display='block'; document.getElementById('logo-fallback-login').style.display='none';"
-                        onerror="this.style.display='none';">
+        <!-- Brand panel -->
+        <aside class="auth-brand">
+            <div>
+                <div class="auth-brand-logo">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-white/10 border border-white/15 grid place-items-center">
+                        <span class="material-symbols-outlined text-lg" style="color:#8fb6ff;">medication</span>
+                    </div>
+                    PharmaTrack
                 </div>
-                <h1 class="font-headline-md text-headline-md font-bold text-on-surface">PharmaTrack</h1>
-                <p class="font-body-sm text-on-surface-variant mt-1">Sign in to continue</p>
-            </div>
 
-            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 shadow-sm">
+                <div style="margin-top:64px;">
+                    <h1>Pharmacy management, without the paperwork.</h1>
+                    <p class="auth-tagline">Inventory, batches, expiry alerts and multi-pharmacy accounts &mdash;
+                        all in one clean workspace.</p>
 
-                {% if error %}
-                <div
-                    class="mb-5 px-4 py-3 bg-error-container text-on-error-container rounded-lg text-body-sm flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base">error</span>
-                    {{ error }}
-                </div>
-                {% endif %}
-
-                <form method="POST" class="space-y-5">
-                    <input type="hidden" name="next" value="{{ next }}">
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Name</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">person</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="text" name="name" autocomplete="username" required autofocus>
+                    <div class="auth-brand-features">
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">inventory_2</span>
+                            <div class="text">
+                                <b>Stock &amp; batch tracking</b>
+                                <span>Products, batches and expiry dates under one roof.</span>
+                            </div>
+                        </div>
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">monitoring</span>
+                            <div class="text">
+                                <b>Live stock intelligence</b>
+                                <span>Low-stock and expiry alerts so nothing slips through.</span>
+                            </div>
+                        </div>
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">storefront</span>
+                            <div class="text">
+                                <b>Multi-pharmacy ready</b>
+                                <span>Every tenant sees only its own inventory and staff.</span>
+                            </div>
+                        </div>
+                        <div class="auth-brand-feature">
+                            <span class="icon material-symbols-outlined">security</span>
+                            <div class="text">
+                                <b>Role-based access</b>
+                                <span>Pharmacist, admin and platform roles with clear rules.</span>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="space-y-2">
-                        <label class="block font-label-bold text-label-bold text-on-surface">Password</label>
-                        <div class="relative">
-                            <span
-                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">lock</span>
-                            <input
-                                class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
-                                type="password" name="password" autocomplete="current-password" required>
-                        </div>
-                    </div>
-
-                    <button type="submit"
-                        class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm">
-                        Sign In
-                    </button>
-                </form>
-
+                </div>
             </div>
 
-            <p class="text-center text-body-sm text-on-surface-variant mt-6">
-                No account? <a href="{{ url_for('register') }}"
-                    class="text-secondary font-label-bold hover:underline">Create one</a>
-            </p>
+            <p class="auth-brand-foot">&copy; PharmaTrack &middot; Secure inventory management</p>
+        </aside>
 
-        </div>
+        <!-- Form panel -->
+        <main class="auth-form">
+            <div class="auth-form-inner">
+
+                <div class="lg:hidden flex items-center justify-center gap-2.5 mb-8">
+                    <div
+                        class="w-9 h-9 rounded-xl bg-white border border-outline-variant grid place-items-center">
+                        <span class="material-symbols-outlined text-on-surface text-lg">medication</span>
+                    </div>
+                    <span class="font-display text-display text-on-surface">PharmaTrack</span>
+                </div>
+
+                <div class="mb-6 text-center lg:text-left">
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Welcome back</h2>
+                    <p class="text-body-md text-on-surface-variant mt-1">Sign in to your pharmacy account</p>
+                </div>
+
+                <div class="auth-card p-7">
+
+                    {% if error %}
+                    <div
+                        class="mb-5 px-4 py-3 bg-error-container text-on-error-container rounded-xl text-body-sm flex items-start gap-2.5">
+                        <span class="material-symbols-outlined text-base mt-0.5">error</span>
+                        <span>{{ error }}</span>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" class="space-y-5" data-submit-spinner>
+                        <input type="hidden" name="next" value="{{ next }}">
+
+                        <div>
+                            <label for="auth-name"
+                                class="block text-label-bold font-label-bold text-on-surface mb-1.5">
+                                Name
+                            </label>
+                            <div class="relative group">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">person</span>
+                                <input id="auth-name"
+                                    class="w-full pl-11 pr-4 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface placeholder-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="text" name="name" autocomplete="username" placeholder="e.g. Admin"
+                                    required autofocus>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label for="auth-password"
+                                    class="block text-label-bold font-label-bold text-on-surface">
+                                    Password
+                                </label>
+                            </div>
+                            <div class="relative group">
+                                <span
+                                    class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">lock</span>
+                                <input id="auth-password" data-pw-toggle
+                                    class="w-full pl-11 pr-12 py-3 bg-surface border border-outline-variant rounded-xl text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all"
+                                    type="password" name="password" autocomplete="current-password"
+                                    placeholder="Your password" required>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" data-spinner
+                            class="w-full py-3.5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-sm mt-2">
+                            Sign In
+                        </button>
+                    </form>
+                </div>
+
+                <p class="text-center text-body-sm text-on-surface-variant mt-6">
+                    New to PharmaTrack?
+                    <a href="{{ url_for('register') }}"
+                        class="text-secondary font-label-bold hover:underline">Create an account</a>
+                </p>
+            </div>
+        </main>
     </div>
+
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
 </body>
 
 </html>
