@@ -162,6 +162,12 @@ def _run_migrations(conn):
     """
     _add_column(conn, "user", "pharmacy_id", "TEXT REFERENCES pharmacy(id)")
     _add_column(conn, "user", "status", "TEXT NOT NULL DEFAULT 'active'")
+    _add_column(conn, "user", "must_update_profile", "INTEGER NOT NULL DEFAULT 0")
+    _add_column(conn, "pharmacy", "email", "TEXT")
+    _add_column(conn, "pharmacy", "license_number", "TEXT")
+    _add_column(conn, "pharmacy", "state", "TEXT")
+    _add_column(conn, "pharmacy", "zip_code", "TEXT")
+    _add_column(conn, "pharmacy", "emergency_desc", "TEXT")
     _add_column(conn, "product", "pharmacy_id", "TEXT REFERENCES pharmacy(id)")
     _add_column(conn, "product", "price_per_unit", "REAL")
     _add_column(conn, "product", "price_per_packet", "REAL")

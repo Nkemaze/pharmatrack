@@ -8,7 +8,8 @@
         <div>
             <h2 class="text-[28px] font-semibold tracking-tight text-on-surface">Pharmacies</h2>
             <p class="text-sm text-on-surface-variant mt-1.5">Create and manage pharmacy accounts across the PharmaTrack
-                network. Pending applications cannot sign in until you approve them.</p>
+                network. Pending applications wait for your approval; approved and created accounts can&rsquo;t sign in
+                until the pharmacy completes its profile setup.</p>
         </div>
         <button type="button" id="add-pharmacy-open"
             class="bg-secondary text-on-secondary font-label-bold text-label-bold px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 font-semibold">
@@ -46,8 +47,9 @@
             <select id="pharmacy-status-filter"
                 class="bg-transparent text-body-md text-on-surface font-medium focus:outline-none ml-1">
                 <option value="all">All</option>
+                <option value="pending">Pending Approval</option>
+                <option value="pending_setup">Pending Setup</option>
                 <option value="active">Active</option>
-                <option value="pending">Pending Setup</option>
                 <option value="suspended">Suspended</option>
                 <option value="rejected">Rejected</option>
             </select>
@@ -70,7 +72,7 @@
         <div class="divide-y divide-outline-variant">
             {% for p in pharmacies %}
             <div class="grid grid-cols-12 items-center px-4 py-4 {{ 'bg-amber-500/5' if p.status == 'pending' }} pharmacy-row"
-                data-name="{{ p.name|lower }}" data-email="{{ (p.applicant_name or '')|lower }}" data-status="{{ p.status }}">
+                data-name="{{ p.name|lower }}" data-email="{{ (p.applicant_name or '')|lower }}" data-display="{{ p.display_status or p.status }}">
                 <div class="col-span-3 flex items-center gap-3 min-w-0 pr-2">
                     <div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0">
                         <span class="material-symbols-outlined text-secondary">local_pharmacy</span>
@@ -195,8 +197,8 @@
                         <span class="material-symbols-outlined text-base">casino</span> Generate
                     </button>
                 </div>
-                <p class="text-xs text-on-surface-variant mt-1.5">After creation, share the email and temporary password
-                    with the pharmacy. They can change it later.</p>
+                <p class="text-xs text-on-surface-variant mt-1.5">After creation, share the email and temporary password with the
+                    pharmacy. They will be required to set up their profile and a new password on first login.</p>
             </div>
             {% if error %}
             <div class="px-3 py-2 bg-error/10 text-error rounded-lg text-body-sm flex items-center gap-2">

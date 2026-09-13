@@ -14,8 +14,13 @@ CREATE TABLE IF NOT EXISTS pharmacy (
     name TEXT NOT NULL,
     address TEXT,
     city TEXT,
+    state TEXT,
+    zip_code TEXT,
     phone TEXT,
+    email TEXT,                     -- contact email (profile / disclosures)
+    license_number TEXT,
     emergency_phone TEXT,
+    emergency_desc TEXT,
     latitude TEXT,
     longitude TEXT,
     opening_hours TEXT,             -- JSON: weekdayOpen, weekdayClose, weekendOpen, weekendClose
@@ -60,6 +65,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     password_hash TEXT,
     pharmacy_id TEXT,               -- the tenant this login belongs to
     status TEXT NOT NULL DEFAULT 'active',  -- active | pending | suspended
+    must_update_profile INTEGER NOT NULL DEFAULT 0,  -- 1 = force profile setup on first login
     FOREIGN KEY (pharmacy_id) REFERENCES pharmacy(id)
 );
 

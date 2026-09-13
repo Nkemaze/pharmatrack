@@ -1,9 +1,10 @@
 <span
     class="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide shrink-0 border
-        {% if p.status == 'active' %}bg-green-500/15 text-green-600 dark:text-green-400 border-green-600/25
-        {% elif p.status == 'pending' %}bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-600/25
-        {% elif p.status == 'suspended' %}bg-error/15 text-error border-error/25
-        {% elif p.status == 'rejected' %}bg-on-surface-variant/10 text-on-surface-variant border-on-surface-variant/25
+        {% if p.display_status == 'active' %}bg-green-500/15 text-green-600 dark:text-green-400 border-green-600/25
+        {% elif p.display_status == 'pending_setup' %}bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-600/25
+        {% elif p.display_status == 'pending' %}bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-600/25
+        {% elif p.display_status == 'suspended' %}bg-error/15 text-error border-error/25
+        {% elif p.display_status == 'rejected' %}bg-on-surface-variant/10 text-on-surface-variant border-on-surface-variant/25
         {% else %}bg-on-surface-variant/10 text-on-surface-variant border-on-surface-variant/25{% endif %}">
-    {% if p.status == 'pending' %}Pending Setup{% else %}{{ p.status }}{% endif %}
+    {% if p.display_status == 'pending' %}Pending Approval{% elif p.display_status == 'pending_setup' %}Pending Setup{% else %}{{ p.display_status or p.status }}{% endif %}
 </span>

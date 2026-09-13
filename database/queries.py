@@ -134,7 +134,8 @@ def create_pharmacy(name, address=None, city=None, phone=None,
 def update_pharmacy(pharmacy_id, **fields):
     """Updates the mutable profile fields of a pharmacy tenant. Only keys
     present in fields are changed."""
-    allowed = {"name", "address", "city", "phone", "emergency_phone",
+    allowed = {"name", "address", "city", "state", "zip_code", "phone", "email",
+               "license_number", "emergency_phone", "emergency_desc",
                "latitude", "longitude", "opening_hours", "status"}
     sets = [f"{k} = ?" for k in fields if k in allowed]
     if not sets:
@@ -151,7 +152,9 @@ def update_pharmacy(pharmacy_id, **fields):
 def create_pharmacy_account(name, email, password, address=None, city=None, phone=None):
     """Admin-provisioned pharmacy: creates an active pharmacy tenant plus
     an active pharmacist login.  The admin shares the email / password with
-    the pharmacy.  Returns the new pharmacy id."""
+    the pharmacy.  The pharmacist must complete a profile set-up and choose
+    a new password before the dashboard opens (must_update_profile = 1).
+    Returns the new pharmacy id."""
     import uuid
     from werkzeug.security import generate_password_hash
 
@@ -168,14 +171,15 @@ def create_pharmacy_account(name, email, password, address=None, city=None, phon
     try:
         pharmacy_id = str(uuid.uuid4())
         conn.execute(
-            """INSERT INTO pharmacy (id, name, address, city, phone, status)
-               VALUES (?, ?, ?, ?, ?, 'active')""",
-            (pharmacy_id, name, address or None, city or None, phone or None),
+            """INSERT INTO pharmacy (id, name, address, city, phone, email, status)
+               VALUES (?, ?, ?, ?, ?, ?, 'active')""",
+            (pharmacy_id, name, address or None, city or None, phone or None, email),
         )
         user_id = str(uuid.uuid4())
         conn.execute(
-            'INSERT INTO "user" (id, name, role, password_hash, pharmacy_id, status) '
-            "VALUES (?, ?, 'pharmacist', ?, ?, 'active')",
+            'INSERT INTO "user" '
+            "(id, name, role, password_hash, pharmacy_id, status, must_update_profile) "
+            "VALUES (?, ?, 'pharmacist', ?, ?, 'active', 1)",
             (user_id, email, generate_password_hash(password), pharmacy_id),
         )
         conn.commit()
@@ -207,9 +211,9 @@ def create_pharmacy_registration(name, email, password, address=None, city=None,
         pharmacy_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO pharmacy
-               (id, name, address, city, phone, emergency_phone, opening_hours, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
-            (pharmacy_id, name, address, city, phone, emergency_phone, opening_hours)
+               (id, name, address, city, phone, email, emergency_phone, opening_hours, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
+            (pharmacy_id, name, address, city, phone, email, emergency_phone, opening_hours)
         )
         user_id = str(uuid.uuid4())
         conn.execute(
@@ -225,7 +229,12 @@ def create_pharmacy_registration(name, email, password, address=None, city=None,
 
 def get_pharmacies_with_applicant():
     """Every pharmacy tenant with its first pharmacist applicant, sorted
-    pending-first - the data backing the admin's pharmacy management page."""
+    pending-first - the data backing the admin's pharmacy management page.
+
+    Each row keeps its real `status` (used for admin actions) and gains a
+    `display_status` used for badges and filters:
+      - 'pending_setup' when the tenant is active but its pharmacist has not
+        yet completed the forced profile setup (must_update_profile = 1)."""
     conn = get_db_connection()
     try:
         rows = conn.execute(
@@ -236,7 +245,10 @@ def get_pharmacies_with_applicant():
                         ORDER BY u.id LIMIT 1) AS applicant_name,
                       (SELECT u.status FROM "user" u
                         WHERE u.pharmacy_id = p.id AND u.role = 'pharmacist'
-                        ORDER BY u.id LIMIT 1) AS applicant_status
+                        ORDER BY u.id LIMIT 1) AS applicant_status,
+                      (SELECT u.must_update_profile FROM "user" u
+                        WHERE u.pharmacy_id = p.id AND u.role = 'pharmacist'
+                        ORDER BY u.id LIMIT 1) AS applicant_must_setup
                FROM pharmacy p
                ORDER BY
                  CASE p.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1
@@ -245,7 +257,35 @@ def get_pharmacies_with_applicant():
         ).fetchall()
     finally:
         conn.close()
-    return [dict(r) for r in rows]
+    pharmacies = []
+    for r in rows:
+        d = dict(r)
+        d["must_update_profile"] = bool(d.get("applicant_must_setup"))
+        if d["status"] == "active" and d["must_update_profile"]:
+            d["display_status"] = "pending_setup"
+        else:
+            d["display_status"] = d["status"]
+        pharmacies.append(d)
+    return pharmacies
+
+
+def get_pending_setup_count():
+    """Number of pharmacies whose active pharmacist account still needs to
+    complete its forced profile setup (incomplete, awaiting the pharmacy)."""
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            """SELECT COUNT(*) AS n
+               FROM "user" u
+               JOIN pharmacy ph ON ph.id = u.pharmacy_id
+               WHERE u.role = 'pharmacist'
+                 AND ph.status = 'active'
+                 AND u.status = 'active'
+                 AND u.must_update_profile = 1"""
+        ).fetchone()
+    finally:
+        conn.close()
+    return row["n"] if row else 0
 
 
 def get_pending_pharmacy_count():
@@ -260,10 +300,14 @@ def get_pending_pharmacy_count():
     return row["n"] if row else 0
 
 
-def update_pharmacy_status(pharmacy_id, status, user_status=None):
+def update_pharmacy_status(pharmacy_id, status, user_status=None, setup=False):
     """Sets a pharmacy's approval status. When user_status is given, every
     account of that pharmacy is set to it at the same time - the admin's
-    Approve/Suspend/Reactivate controls stay in lock-step with the tenant."""
+    Approve/Suspend/Reactivate controls stay in lock-step with the tenant.
+
+    When setup=True the pharmacist accounts are also flagged to complete the
+    forced profile setup (must_update_profile = 1) - used when an application
+    is approved so the pharmacy fills in its real profile before use."""
     conn = get_db_connection()
     try:
         conn.execute("UPDATE pharmacy SET status = ? WHERE id = ?", (status, pharmacy_id))
@@ -271,6 +315,11 @@ def update_pharmacy_status(pharmacy_id, status, user_status=None):
             conn.execute(
                 'UPDATE "user" SET status = ? WHERE pharmacy_id = ?',
                 (user_status, pharmacy_id),
+            )
+        if setup:
+            conn.execute(
+                'UPDATE "user" SET must_update_profile = 1 WHERE pharmacy_id = ?',
+                (pharmacy_id,),
             )
         conn.commit()
     finally:
@@ -1019,13 +1068,18 @@ def get_users():
 def get_user_by_id(user_id):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute('SELECT id, name, role, pharmacy_id, status FROM "user" WHERE id = ?', (user_id,))
+    cur.execute(
+        'SELECT id, name, role, pharmacy_id, status, must_update_profile '
+        'FROM "user" WHERE id = ?',
+        (user_id,),
+    )
     row = cur.fetchone()
     conn.close()
     if row is None:
         return None
     return {"id": row["id"], "name": row["name"], "role": row["role"],
-            "pharmacy_id": row["pharmacy_id"], "status": row["status"]}
+            "pharmacy_id": row["pharmacy_id"], "status": row["status"],
+            "must_update_profile": bool(row["must_update_profile"])}
 
 
 def admin_exists():
@@ -1166,7 +1220,7 @@ def authenticate_user(name, password):
     cur = conn.cursor()
     cur.execute(
         """SELECT u.id, u.name, u.role, u.password_hash, u.pharmacy_id,
-                  u.status, ph.status AS pharmacy_status
+                  u.status, u.must_update_profile, ph.status AS pharmacy_status
            FROM "user" u
            LEFT JOIN pharmacy ph ON ph.id = u.pharmacy_id
            WHERE u.name = ?""",
@@ -1181,7 +1235,53 @@ def authenticate_user(name, password):
         return None
     return {"id": row["id"], "name": row["name"], "role": row["role"],
             "pharmacy_id": row["pharmacy_id"], "status": row["status"],
+            "must_update_profile": bool(row["must_update_profile"]),
             "pharmacy_status": row["pharmacy_status"]}
+
+
+def verify_password(user_id, password):
+    """True when password matches the stored hash for the account. Used to
+    re-authenticate a pharmacist before they change their password during
+    the forced profile setup."""
+    from werkzeug.security import check_password_hash
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT password_hash FROM "user" WHERE id = ?', (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row is None or not row["password_hash"]:
+        return False
+    return check_password_hash(row["password_hash"], password)
+
+
+def change_password(user_id, new_password):
+    """Replaces an account's password hash."""
+    from werkzeug.security import generate_password_hash
+
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'UPDATE "user" SET password_hash = ? WHERE id = ?',
+            (generate_password_hash(new_password), user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_profile_completed(user_id):
+    """Lifts the forced-setup flag once a pharmacist saves their profile and
+    chooses a new password."""
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'UPDATE "user" SET must_update_profile = 0 WHERE id = ?',
+            (user_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def delete_user(user_id):

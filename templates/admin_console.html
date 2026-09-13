@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Admin Console &middot; PharmaTrack</title>
+    <script>
+        (function () {
+            if (localStorage.getItem('pharmatrack-theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config" src="{{ url_for('static', filename='tailwind-config.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="auth-shell">
+        <span class="auth-blob auth-blob-1" aria-hidden="true"></span>
+        <span class="auth-blob auth-blob-2" aria-hidden="true"></span>
+        <span class="auth-blob auth-blob-3" aria-hidden="true"></span>
+
+        <div class="auth-stage">
+
+            <!-- Brand -->
+            <div class="auth-brand-logo mb-1">
+                <div class="auth-brand-icon">
+                    <span class="material-symbols-outlined">admin_panel_settings</span>
+                </div>
+                PharmaTrack <span class="text-on-surface-variant font-semibold">Admin</span>
+            </div>
+            <p class="auth-tagline mb-8">Pharmacy Network Console</p>
+
+            <!-- Card -->
+            <div class="auth-card p-8 sm:p-10">
+
+                {% if error %}
+                <div
+                    class="flex items-start gap-3 px-4 py-3 mb-6 bg-error-container border border-error/20 rounded-lg text-body-sm text-on-error-container">
+                    <span class="material-symbols-outlined text-[18px] mt-[1px]">report</span>
+                    <span>{{ error }}</span>
+                </div>
+                {% endif %}
+
+                {% if show_bootstrap %}
+                <div class="flex items-center gap-2.5 mb-1">
+                    <span class="material-symbols-outlined text-secondary">key</span>
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Set up the console</h2>
+                </div>
+                <p class="text-body-sm text-on-surface-variant mb-6 leading-relaxed">
+                    No administrator exists yet. Enter a name, a password and the setup code to create the first
+                    platform administrator.
+                </p>
+                <form method="POST" class="space-y-5" data-submit-spinner>
+                    <div>
+                        <label for="ac-name" class="auth-label">Name / Email</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">person</span>
+                            <input id="ac-name"
+                                class="w-full pl-[44px] pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="text" name="name" autocomplete="username" placeholder="e.g. admin@pharmatrack.com"
+                                required autofocus>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="ac-password" class="auth-label">Password</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                            <input id="ac-password" data-pw-toggle
+                                class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="password" name="password" minlength="8" autocomplete="new-password"
+                                placeholder="At least 8 characters" required>
+                            <button type="button" data-pw-btn aria-label="Show password"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                <span class="material-symbols-outlined text-[20px]">visibility_outlined</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="ac-confirm" class="auth-label">Confirm password</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                            <input id="ac-confirm" data-pw-toggle
+                                class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="password" name="confirm_password" minlength="8" autocomplete="new-password"
+                                placeholder="Repeat your password" required>
+                            <button type="button" data-pw-btn aria-label="Show password"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                <span class="material-symbols-outlined text-[20px]">visibility_outlined</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="ac-code" class="auth-label">Setup code</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">pin</span>
+                            <input id="ac-code"
+                                class="w-full pl-[44px] pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="text" name="setup_code" autocomplete="off" placeholder="Provided during deployment"
+                                required>
+                        </div>
+                    </div>
+                    <button type="submit" data-spinner
+                        class="w-full h-12 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold flex items-center justify-center gap-2 hover:opacity-90 shadow-sm transition-all mt-2">
+                        Create Administrator
+                        <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+                    </button>
+                </form>
+
+                {% else %}
+                <div class="flex items-center gap-2.5 mb-1">
+                    <span class="material-symbols-outlined text-secondary">shield</span>
+                    <h2 class="text-[22px] font-bold tracking-tight text-on-surface">Administrator sign in</h2>
+                </div>
+                <p class="text-body-sm text-on-surface-variant mb-6 leading-relaxed">
+                    Authorized platform administrators only.
+                </p>
+                <form method="POST" class="space-y-5" data-submit-spinner>
+                    <div>
+                        <label for="ac-login-name" class="auth-label">Name / Email</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">person</span>
+                            <input id="ac-login-name"
+                                class="w-full pl-[44px] pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="text" name="name" autocomplete="username" placeholder="admin" required autofocus>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="ac-login-password" class="auth-label">Password</label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                            <input id="ac-login-password" data-pw-toggle
+                                class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="password" name="password" autocomplete="current-password"
+                                placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required>
+                            <button type="button" data-pw-btn aria-label="Show password"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                <span class="material-symbols-outlined text-[20px]">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" data-spinner
+                        class="w-full h-12 bg-secondary text-on-secondary rounded-lg font-label-bold text-label-bold flex items-center justify-center gap-2 hover:opacity-90 shadow-sm transition-all mt-2">
+                        Sign In
+                        <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            <p class="text-center text-body-sm text-on-surface-variant mt-6">
+                Pharmacists?
+                <a href="{{ url_for('login') }}"
+                    class="text-secondary font-label-bold hover:underline">Go to pharmacy login</a>
+            </p>
+        </div>
+
+        <div class="auth-status">
+            <span class="dot"></span> Inventory sync active
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+</body>
+
+</html>

@@ -19,12 +19,12 @@ from database.queries import (
     update_product, get_setting, set_setting,
     get_alert_count,
     get_users, get_user_by_id, create_user, delete_user, authenticate_user, user_name_exists,
-    admin_exists,
+    admin_exists, change_password, mark_profile_completed, verify_password,
     get_all_movements_for_export, is_token_revoked,
     get_pharmacy, update_pharmacy, get_pharmacies,
     login_attempt_lockout, record_login_attempt, clear_login_attempts,
     create_pharmacy_registration, create_pharmacy_account, get_pharmacies_with_applicant,
-    get_pending_pharmacy_count, update_pharmacy_status,
+    get_pending_pharmacy_count, get_pending_setup_count, update_pharmacy_status,
     delete_pharmacy_application, login_status_block,
 )
 from api import api_v1_bp
@@ -76,6 +76,11 @@ jwt = JWTManager(app)
 _cors_origins = os.environ.get('CORS_ORIGINS', '*')
 CORS(app, origins=_cors_origins.split(',') if _cors_origins != '*' else '*',
      supports_credentials=True)
+
+# Setup code for the secret /admin-console first-run bootstrap (mirrors
+# AdminConfig.adminSetupCode in the Flutter app). ENV override allows each
+# deployment to change it without touching code.
+ADMIN_SETUP_CODE = os.environ.get('PHARMATRACK_ADMIN_SETUP_CODE', 'PharmaAdmin#2026')
 
 
 @jwt.token_in_blocklist_loader
@@ -338,6 +343,11 @@ def login():
                         session['user_id'] = user['id']
                         session['user_name'] = user['name']
                         session['role'] = user['role']
+                        if user.get('role') == 'pharmacist' and user.get('must_update_profile'):
+                            # First login on an admin-created (or newly
+                            # approved) pharmacy account: force the profile
+                            # setup before the dashboard can be reached.
+                            return redirect(url_for('profile_setup'))
                         return redirect(_safe_next(request.form.get('next')))
                 else:
                     # Deliberately generic - never reveals whether the name exists
@@ -351,6 +361,157 @@ def login():
                      'Please try again in a moment.')
 
     return render_template('login.html', error=error, next=request.args.get('next', ''))
+
+
+@app.route('/admin-console', methods=['GET', 'POST'])
+def admin_console():
+    """The secret administrator portal (mirrors the Flutter admin login page).
+
+    First run on a fresh platform: a bootstrap form (email, password + setup
+    code) creates the very first 'admin' account. Once an admin exists, the
+    same page becomes a plain admin sign-in. There is deliberately no link to
+    this route anywhere in the app."""
+    show_bootstrap = not admin_exists()
+    error = None
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        password = request.form.get('password', '')
+
+        if show_bootstrap:
+            confirm = request.form.get('confirm_password', '')
+            setup_code = request.form.get('setup_code', '').strip()
+            if not name or not password:
+                error = "Name and password are required."
+            elif password != confirm:
+                error = "Passwords do not match."
+            elif len(password) < 8:
+                error = "Password must be at least 8 characters."
+            elif setup_code != ADMIN_SETUP_CODE:
+                error = "The setup code is incorrect."
+            elif user_name_exists(name):
+                error = "That name is already registered. Choose another."
+            else:
+                try:
+                    create_user(name=name, role='admin', password=password)
+                except Exception:
+                    app.logger.exception('Admin console bootstrap failed')
+                    error = ('We could not create the administrator account right '
+                             'now. Please try again in a moment.')
+                else:
+                    user = authenticate_user(name, password)
+                    session['user_id'] = user['id']
+                    session['user_name'] = user['name']
+                    session['role'] = user['role']
+                    return redirect(url_for('dashboard'))
+        else:
+            try:
+                locked_seconds = _check_lockout(name)
+                if locked_seconds > 0:
+                    error = (f"Too many failed attempts. Try again in "
+                             f"{int(locked_seconds)} seconds.")
+                else:
+                    user = authenticate_user(name, password)
+                    if user is None:
+                        _record_failed_attempt(name)
+                        error = "Incorrect name or password."
+                    elif user['role'] != 'admin':
+                        error = "Only administrators can use this console."
+                    else:
+                        _clear_attempts(name)
+                        session.permanent = True
+                        session['user_id'] = user['id']
+                        session['user_name'] = user['name']
+                        session['role'] = user['role']
+                        return redirect(url_for('dashboard'))
+            except Exception:
+                app.logger.exception('Admin console login failed')
+                error = ('We could not complete your sign-in right now. '
+                         'Please try again in a moment.')
+
+    return render_template('admin_console.html', show_bootstrap=show_bootstrap,
+                           error=error)
+
+
+@app.route('/profile-setup', methods=['GET', 'POST'])
+@login_required
+def profile_setup():
+    """Forced onboarding for a pharmacy account that has not completed its
+    profile setup yet (must_update_profile = 1). The pharmacist saves their
+    pharmacy details, is re-authenticated with the temporary password, and
+    chooses a new password - only then is the flag lifted."""
+    user = get_user_by_id(session.get('user_id'))
+    if user is None or user['role'] != 'pharmacist':
+        return redirect(url_for('dashboard'))
+    if not user.get('must_update_profile'):
+        return redirect(url_for('dashboard'))
+    pharmacy = get_pharmacy(user['pharmacy_id']) if user['pharmacy_id'] else {}
+
+    error = None
+    if request.method == 'POST':
+        pharmacy_name = request.form.get('pharmacy_name', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not pharmacy_name or not address:
+            error = "Pharmacy name and street address are required."
+        elif '@' not in email:
+            error = "Enter a valid contact email address."
+        elif not current_password:
+            error = "Enter your current password to confirm this change."
+        elif not verify_password(user['id'], current_password):
+            error = "Current password is incorrect."
+        elif len(new_password) < 8:
+            error = "New password must be at least 8 characters."
+        elif new_password != confirm_password:
+            error = "New passwords do not match."
+        else:
+            try:
+                opening_hours = {
+                    'weekdayOpen': request.form.get('hours_weekday_open') or None,
+                    'weekdayClose': request.form.get('hours_weekday_close') or None,
+                    'weekendOpen': request.form.get('hours_weekend_open') or None,
+                    'weekendClose': request.form.get('hours_weekend_close') or None,
+                }
+                update_pharmacy(
+                    user['pharmacy_id'],
+                    name=pharmacy_name,
+                    license_number=request.form.get('license_number', '').strip() or None,
+                    email=email,
+                    address=address,
+                    city=request.form.get('city', '').strip() or None,
+                    state=request.form.get('state', '').strip() or None,
+                    zip_code=request.form.get('zip_code', '').strip() or None,
+                    phone=request.form.get('phone', '').strip() or None,
+                    emergency_phone=request.form.get('emergency_phone', '').strip() or None,
+                    emergency_desc=request.form.get('emergency_desc', '').strip() or None,
+                    latitude=request.form.get('latitude', '').strip() or None,
+                    longitude=request.form.get('longitude', '').strip() or None,
+                    opening_hours=json.dumps(opening_hours),
+                )
+                change_password(user['id'], new_password)
+                mark_profile_completed(user['id'])
+            except Exception:
+                app.logger.exception('Pharmacy profile setup failed')
+                error = ('We could not save your profile right now. '
+                         'Please try again in a moment.')
+            else:
+                return redirect(url_for('dashboard'))
+
+    parsed_hours = _parse_hours(pharmacy.get('opening_hours')) if pharmacy else {}
+    return render_template(
+        'profile_setup.html',
+        active_page=None,
+        error=error,
+        pharmacy=pharmacy or {},
+        hours_weekday_open=(parsed_hours.get('weekdayOpen') or '08:00'),
+        hours_weekday_close=(parsed_hours.get('weekdayClose') or '20:00'),
+        hours_weekend_open=(parsed_hours.get('weekendOpen') or '09:00'),
+        hours_weekend_close=(parsed_hours.get('weekendClose') or '15:00'),
+    )
 
 
 @app.route('/logout')
@@ -464,6 +625,10 @@ def apk_latest():
 @app.route('/')
 @login_required
 def dashboard():
+    if session.get('role') != 'admin':
+        user = get_user_by_id(session.get('user_id'))
+        if user and user.get('must_update_profile'):
+            return redirect(url_for('profile_setup'))
     if session.get('role') == 'admin':
         return _admin_dashboard()
     data = get_dashboard_data()
@@ -474,16 +639,16 @@ def _admin_dashboard():
     """The platform administrator's console: pharmacy accounts only.
 
     Mirrors the AdminDashboardPage of the reference app - an overview of
-    every tenant (total/pending/active/suspended/rejected) plus the most
-    recently registered pharmacies. Day-to-day inventory and movement entry
-    is the pharmacists' job; admins manage accounts."""
+    every tenant (total/pending-approval/pending-setup/active/suspended/rejected)
+    plus the most recently registered pharmacies. Day-to-day inventory and
+    movement entry is the pharmacists' job; admins manage accounts."""
 
     def _status_counts(rows):
-        counts = {"total": len(rows), "pending": 0, "active": 0,
-                  "suspended": 0, "rejected": 0}
+        counts = {"total": len(rows), "pending": 0, "pending_setup": 0,
+                  "active": 0, "suspended": 0, "rejected": 0}
         for r in rows:
-            key = r["status"]
-            counts[key] = counts.get(key, 0) + 1
+            ds = r.get("display_status", r["status"])
+            counts[ds] = counts.get(ds, 0) + 1
         return counts
 
     pharmacies = get_pharmacies_with_applicant()
@@ -777,13 +942,13 @@ def add_pharmacy():
             error = ('We could not create the pharmacy account right now. '
                      'Please try again in a moment.')
         else:
+            message = f"Pharmacy account created. Send the credentials to {email} — they will be required to set up their profile and a new password on first login."
             return render_template(
                 'manage_pharmacies.html',
                 active_page='pharmacies',
                 topbar_title='Manage Pharmacies',
                 pharmacies=get_pharmacies_with_applicant(),
-                success=(f"Pharmacy account created. Credentials for "
-                         f"{email} are ready to share."),
+                success=message,
             )
 
     return render_template(
@@ -805,7 +970,11 @@ def pharmacy_action(pharmacy_id, action):
     if action not in _PHARMACY_STATUS_ACTIONS:
         abort(404)
     status, user_status = _PHARMACY_STATUS_ACTIONS[action]
-    update_pharmacy_status(pharmacy_id, status, user_status=user_status)
+    update_pharmacy_status(
+        pharmacy_id, status,
+        user_status=user_status,
+        setup=(action == 'approve'),  # approved applicants must finish setup
+    )
     return redirect(url_for('manage_pharmacies'))
 
 @app.route('/movements/export')

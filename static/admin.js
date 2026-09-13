@@ -65,7 +65,8 @@
             var status = filter.value;
             var shown = 0;
             rows.forEach(function (row) {
-                var matchStatus = status === 'all' || row.dataset.status === status;
+                var display = row.dataset.display;
+                var matchStatus = status === 'all' || display === status;
                 var matchQuery = !q ||
                     (row.dataset.name && row.dataset.name.indexOf(q) !== -1) ||
                     (row.dataset.email && row.dataset.email.indexOf(q) !== -1);

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Complete Your Pharmacy Profile &middot; PharmaTrack</title>
+    <script>
+        (function () {
+            if (localStorage.getItem('pharmatrack-theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config" src="{{ url_for('static', filename='tailwind-config.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="bg-surface min-h-screen">
+    <div class="max-w-6xl mx-auto px-6 py-10">
+
+        <!-- Header (mirrors the Flutter ProfileSetupPage) -->
+        <div class="flex flex-wrap items-start justify-between gap-6 mb-8">
+            <div class="max-w-2xl">
+                <p class="text-xs font-bold tracking-[0.15em] uppercase text-primary mb-2">Account setup required</p>
+                <h1 class="text-[28px] font-semibold tracking-tight text-on-surface">Complete Your Pharmacy Profile</h1>
+                <p class="text-body-md text-on-surface-variant mt-1.5">Your administrator created this account. Please
+                    set your profile details and choose a new password to continue.</p>
+            </div>
+            <a href="{{ url_for('logout') }}"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 border border-outline-variant rounded-lg text-body-sm text-on-surface hover:bg-surface-container-low transition">
+                <span class="material-symbols-outlined text-base">logout</span> Sign out
+            </a>
+        </div>
+
+        {% if error %}
+        <div
+            class="flex items-start gap-3 px-4 py-3 mb-8 bg-error-container border border-error/20 rounded-lg text-body-sm text-on-error-container">
+            <span class="material-symbols-outlined text-[18px] mt-[1px]">report</span>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form method="POST" class="grid grid-cols-1 lg:grid-cols-12 gap-6" data-submit-spinner>
+
+            <!-- Left column -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- General Information -->
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-5">
+                        <span class="material-symbols-outlined text-primary">info_outline</span>
+                        <h2 class="text-xl font-semibold text-on-surface">General Information</h2>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="ps-name" class="auth-label">Pharmacy name *</label>
+                            <input id="ps-name" name="pharmacy_name" required value="{{ pharmacy.name or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="ps-license" class="auth-label">License number</label>
+                            <input id="ps-license" name="license_number" value="{{ pharmacy.license_number or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="ps-email" class="auth-label">Contact email *</label>
+                            <input id="ps-email" name="email" type="email" required value="{{ pharmacy.email or current_user_name }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="ps-address" class="auth-label">Street address *</label>
+                            <input id="ps-address" name="address" required value="{{ pharmacy.address or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="ps-city" class="auth-label">City</label>
+                            <input id="ps-city" name="city" value="{{ pharmacy.city or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="ps-state" class="auth-label">State</label>
+                            <input id="ps-state" name="state" value="{{ pharmacy.state or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="ps-zip" class="auth-label">Zip code</label>
+                            <input id="ps-zip" name="zip_code" value="{{ pharmacy.zip_code or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="ps-phone" class="auth-label">Contact phone</label>
+                            <input id="ps-phone" name="phone" type="tel" value="{{ pharmacy.phone or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <!-- Store Hours -->
+                    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                        <div class="flex items-center gap-3 mb-5">
+                            <span class="material-symbols-outlined text-primary">schedule</span>
+                            <h2 class="text-xl font-semibold text-on-surface">Store Hours</h2>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant w-20">Weekdays</span>
+                                <input type="time" name="hours_weekday_open" value="{{ hours_weekday_open }}"
+                                    class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                                <span class="text-sm text-on-surface-variant">to</span>
+                                <input type="time" name="hours_weekday_close" value="{{ hours_weekday_close }}"
+                                    class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant w-20">Weekends</span>
+                                <input type="time" name="hours_weekend_open" value="{{ hours_weekend_open }}"
+                                    class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                                <span class="text-sm text-on-surface-variant">to</span>
+                                <input type="time" name="hours_weekend_close" value="{{ hours_weekend_close }}"
+                                    class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emergency Contact -->
+                    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                        <div class="flex items-center gap-3 mb-5">
+                            <span class="material-symbols-outlined text-primary">local_hospital_outlined</span>
+                            <h2 class="text-xl font-semibold text-on-surface">Emergency Contact</h2>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="ps-emergency-phone" class="auth-label">Phone</label>
+                                <input id="ps-emergency-phone" name="emergency_phone" type="tel"
+                                    value="{{ pharmacy.emergency_phone or '' }}"
+                                    class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                            </div>
+                            <div>
+                                <label for="ps-emergency-desc" class="auth-label">Description</label>
+                                <input id="ps-emergency-desc" name="emergency_desc"
+                                    value="{{ pharmacy.emergency_desc or '' }}" placeholder="e.g. Direct line to duty pharmacist"
+                                    class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right column -->
+            <div class="lg:col-span-5 space-y-6">
+
+                <!-- Set New Password -->
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="material-symbols-outlined text-primary">lock_outline</span>
+                        <h2 class="text-xl font-semibold text-on-surface">Set New Password</h2>
+                        <span class="ml-auto text-[10px] font-bold tracking-wider bg-error/15 text-error px-2 py-1 rounded-full">Required</span>
+                    </div>
+                    <p class="text-body-sm text-on-surface-variant mb-5">You must change the temporary password provided
+                        by your administrator.</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="ps-current" class="auth-label">Current password *</label>
+                            <div class="relative">
+                                <input id="ps-current" data-pw-toggle name="current_password"
+                                    class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                    type="password" autocomplete="current-password" required>
+                                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-[20px]">visibility</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="ps-new" class="auth-label">New password *</label>
+                            <div class="relative">
+                                <input id="ps-new" data-pw-toggle name="new_password" minlength="8"
+                                    class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                    type="password" autocomplete="new-password" placeholder="At least 8 characters" required>
+                                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">key</span>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-[20px]">visibility_outlined</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="ps-confirm" class="auth-label">Confirm new password *</label>
+                            <div class="relative">
+                                <input id="ps-confirm" data-pw-toggle name="confirm_password" minlength="8"
+                                    class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                    type="password" autocomplete="new-password" placeholder="Repeat your password" required>
+                                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                                <button type="button" data-pw-btn aria-label="Show password"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                    <span class="material-symbols-outlined text-[20px]">visibility_outlined</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pharmacy Location -->
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-5">
+                        <span class="material-symbols-outlined text-primary">location_on_outlined</span>
+                        <h2 class="text-xl font-semibold text-on-surface">Pharmacy Location</h2>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="ps-lat" class="auth-label">Latitude</label>
+                            <input id="ps-lat" name="latitude" step="any" value="{{ pharmacy.latitude or '' }}"
+                                placeholder="e.g. 6.45407"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="ps-lng" class="auth-label">Longitude</label>
+                            <input id="ps-lng" name="longitude" step="any" value="{{ pharmacy.longitude or '' }}"
+                                placeholder="e.g. 3.39467"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mt-3">Optional, but recommended for delivery routing in the
+                        customer app.</p>
+                </div>
+
+                <button type="submit" data-spinner
+                    class="w-full h-14 bg-primary text-on-primary rounded-xl font-sans font-bold text-body-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-[.99] shadow-md transition-all">
+                    <span class="material-symbols-outlined text-[22px]">check_circle_outline</span>
+                    Complete Setup &amp; Enter Dashboard
+                </button>
+                <p class="text-center text-xs text-on-surface-variant">Fields marked * are required. Both your profile
+                    and a new password must be set to continue.</p>
+            </div>
+        </form>
+    </div>
+
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+</body>
+
+</html>
