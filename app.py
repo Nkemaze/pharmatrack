@@ -464,8 +464,41 @@ def apk_latest():
 @app.route('/')
 @login_required
 def dashboard():
+    if session.get('role') == 'admin':
+        return _admin_dashboard()
     data = get_dashboard_data()
     return render_template('dashboard.html', active_page='dashboard', **data)
+
+
+def _admin_dashboard():
+    """The platform administrator's console: pharmacy accounts only.
+
+    Mirrors the AdminDashboardPage of the reference app - an overview of
+    every tenant (total/pending/active/suspended/rejected) plus the most
+    recently registered pharmacies. Day-to-day inventory and movement entry
+    is the pharmacists' job; admins manage accounts."""
+
+    def _status_counts(rows):
+        counts = {"total": len(rows), "pending": 0, "active": 0,
+                  "suspended": 0, "rejected": 0}
+        for r in rows:
+            key = r["status"]
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    pharmacies = get_pharmacies_with_applicant()
+    stats = _status_counts(pharmacies)
+    recent = sorted(
+        (p for p in pharmacies if p["status"] != "rejected"),
+        key=lambda p: p["created_at"] or "",
+        reverse=True,
+    )[:6]
+    return render_template(
+        'admin_dashboard.html',
+        active_page='dashboard',
+        stats=stats,
+        recent=recent,
+    )
 
 @app.route('/products')
 @pharmacist_required

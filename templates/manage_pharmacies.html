@@ -3,28 +3,54 @@
 
 {% block content %}
 <div class="max-w-5xl mx-auto w-full">
-    <div class="mb-8">
-        <a href="{{ url_for('settings') }}"
-            class="text-secondary font-label-bold text-label-bold hover:underline">&larr; Back to Settings</a>
-        <h2 class="font-headline-md text-display text-on-surface mb-2 mt-2">Pharmacy Accounts</h2>
-        <p class="font-body-md text-on-surface-variant">Review and approve pharmacy registrations, and control which
-            tenants are active on this platform. Pending applications cannot sign in until you approve them.</p>
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <a href="{{ url_for('settings') }}"
+                class="text-secondary font-label-bold text-label-bold hover:underline flex items-center gap-1">
+                <span class="material-symbols-outlined text-base">&larr;</span> Back to Settings
+            </a>
+            <h2 class="font-headline-md text-display text-on-surface tracking-tight mt-2">Pharmacy Accounts</h2>
+            <p class="font-body-md text-on-surface-variant">Create and manage pharmacy accounts across the PharmaTrack
+                network. Pending applications cannot sign in until you approve them.</p>
+        </div>
     </div>
 
     {% set pending = pharmacies | selectattr('status', 'equalto', 'pending') | list %}
-    <div class="mb-5 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg text-body-sm flex items-center gap-2">
+    {% if pending %}
+    <div class="mb-5 px-4 py-3 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-lg text-body-sm flex items-center gap-2">
         <span class="material-symbols-outlined text-base">hourglass_top</span>
-        {{ pending | length }} application{{ 's' if pending | length != 1 else '' }} awaiting approval.
+        {{ pending | length }} application{{ 's' if pending | length != 1 else '' }} awaiting your approval.
     </div>
+    {% endif %}
 
     {% if not pharmacies %}
-    <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-10 text-center">
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-10 text-center">
         <span class="material-symbols-outlined text-4xl text-on-surface-variant">local_pharmacy</span>
         <p class="font-body-md text-on-surface-variant mt-3">No pharmacies yet. Once pharmacies register, their
             applications will appear here for approval.</p>
     </div>
     {% else %}
-    <div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <div class="relative flex-grow sm:flex-grow-0 sm:w-72">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+            <input id="pharmacy-search" type="text" placeholder="Search by name or email..."
+                class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-1 focus:ring-secondary" />
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg">
+            <span class="font-label-bold text-label-bold text-on-surface-variant">Status:</span>
+            <select id="pharmacy-status-filter"
+                class="bg-transparent text-body-md text-on-surface font-medium focus:outline-none">
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending Setup</option>
+                <option value="suspended">Suspended</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+        <span id="pharmacy-count" class="ml-auto text-body-sm text-on-surface-variant"></span>
+    </div>
+
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
         <table class="w-full text-left border-collapse">
             <thead class="bg-surface-container-low border-b border-outline-variant">
                 <tr>
@@ -37,27 +63,33 @@
             </thead>
             <tbody class="divide-y divide-outline-variant">
                 {% for p in pharmacies %}
-                <tr class="{% if p.status == 'pending' %}bg-secondary-container/20{% endif %}">
+                <tr class="pharmacy-row {% if p.status == 'pending' %}bg-amber-500/5{% endif %}"
+                    data-name="{{ p.name|lower }}" data-email="{{ (p.applicant_name or '')|lower }}"
+                    data-status="{{ p.status }}">
                     <td class="px-6 py-cell-padding-v">
-                        <p class="font-body-md text-body-md text-on-surface">{{ p.name }}</p>
-                        <p class="text-body-sm text-on-surface-variant">{{ p.city or '&mdash;' | safe }}{% if p.city and p.phone %} &middot; {% endif %}{{ p.phone or '' }}</p>
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-secondary">local_pharmacy</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-body-md text-body-md text-on-surface truncate">{{ p.name }}</p>
+                                <p class="text-body-sm text-on-surface-variant truncate">{{ p.city or '—' }}{% if p.city and p.phone %} &middot; {% endif %}{{ p.phone or '' }}</p>
+                            </div>
+                        </div>
                     </td>
                     <td class="px-6 py-cell-padding-v">
-                        <p class="font-body-md text-body-md text-on-surface">{{ p.applicant_name or '&mdash;' }}</p>
+                        <p class="font-body-md text-body-md text-on-surface">{{ p.applicant_name or '—' }}</p>
                         <p class="text-body-sm text-on-surface-variant capitalize">{{ p.applicant_status or '' }}</p>
                     </td>
-                    <td class="px-6 py-cell-padding-v font-body-md text-body-md text-on-surface-variant">{{ p.created_at[:10] if p.created_at else '&mdash;' }}</td>
+                    <td class="px-6 py-cell-padding-v font-body-md text-body-md text-on-surface-variant">{{ p.created_at[:10] if p.created_at else '—' }}</td>
                     <td class="px-6 py-cell-padding-v">
                         <span class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide
                             {% if p.status == 'active' %}bg-green-500/15 text-green-600 dark:text-green-400
-                            {% elif p.status == 'pending' %}bg-amber-500/15 text-amber-600 dark:text-amber-400
+                            {% elif p.status == 'pending' %}bg-amber-500/15 text-amber-700 dark:text-amber-400
                             {% elif p.status == 'rejected' %}bg-on-surface-variant/10 text-on-surface-variant
                             {% else %}bg-error/15 text-error{% endif %}">
                             {{ p.status }}
                         </span>
-                        {% if p.status == 'pending' and p.created_at %}
-                        <p class="text-[11px] text-on-surface-variant mt-1">{{ (p.created_at[:10]) }}</p>
-                        {% endif %}
                     </td>
                     <td class="px-6 py-cell-padding-v text-right whitespace-nowrap">
                         {% if p.status == 'pending' %}
@@ -98,4 +130,8 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
 {% endblock %}
