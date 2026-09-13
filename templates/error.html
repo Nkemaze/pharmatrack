@@ -24,35 +24,39 @@
 </head>
 
 <body>
-    <div class="err-shell">
-        <div class="err-inner">
+    <div class="auth-shell">
+        <span class="auth-blob auth-blob-1" aria-hidden="true"></span>
+        <span class="auth-blob auth-blob-2" aria-hidden="true"></span>
+        <span class="auth-blob auth-blob-3" aria-hidden="true"></span>
 
-            <div class="flex justify-center mb-8">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-outline-variant grid place-items-center">
-                        <span class="material-symbols-outlined text-on-surface text-xl">medication</span>
+        <div class="auth-stage">
+            <div class="flex flex-col items-center gap-2.5 mb-6">
+                <div class="auth-brand-logo">
+                    <div class="auth-brand-icon">
+                        <span class="material-symbols-outlined">medication</span>
                     </div>
-                    <span class="font-display text-display text-on-surface">PharmaTrack</span>
+                    PharmaTrack
                 </div>
             </div>
 
-            <div class="err-card p-8 sm:p-10">
+            <div class="auth-card err-card p-8 sm:p-10">
                 <div class="flex flex-col items-center text-center">
 
-                    <div class="err-icon">
+                    <div
+                        class="w-[76px] h-[76px] rounded-[20px] bg-secondary-container/15 text-secondary flex items-center justify-center mb-5">
                         {% if code == 404 %}
-                        <span class="material-symbols-outlined" style="font-size:44px;">search_off</span>
+                        <span class="material-symbols-outlined" style="font-size:40px;">search_off</span>
                         {% elif code == 403 %}
-                        <span class="material-symbols-outlined" style="font-size:44px;">lock</span>
+                        <span class="material-symbols-outlined" style="font-size:40px;">lock</span>
                         {% elif code == 500 %}
-                        <span class="material-symbols-outlined" style="font-size:44px;">cloud_off</span>
+                        <span class="material-symbols-outlined" style="font-size:40px;">cloud_off</span>
                         {% else %}
-                        <span class="material-symbols-outlined" style="font-size:44px;">error</span>
+                        <span class="material-symbols-outlined" style="font-size:40px;">error</span>
                         {% endif %}
                     </div>
 
-                    <div class="err-code">{{ code }}</div>
-                    <h1 class="text-xl font-bold tracking-tight text-on-surface">{{ title }}</h1>
+                    <div class="text-[42px] font-[800] tracking-[-0.03em] leading-none text-on-surface opacity-15">{{ code }}</div>
+                    <h1 class="text-xl font-bold tracking-tight text-on-surface mt-1">{{ title }}</h1>
                     <p class="text-body-md text-on-surface-variant mt-2 max-w-sm leading-relaxed">{{ message }}</p>
 
                     {% if detail %}
@@ -62,22 +66,26 @@
                     <div class="flex flex-wrap justify-center gap-3 mt-8 w-full">
                         {% if signed_in %}
                         <a href="{{ url_for('dashboard') }}"
-                            class="px-5 py-3 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
+                            class="flex items-center justify-center gap-2 h-11 px-5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
                             Go to dashboard
                         </a>
                         {% else %}
                         <a href="{{ url_for('login') }}"
-                            class="px-5 py-3 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
+                            class="flex items-center justify-center gap-2 h-11 px-5 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
                             Back to sign in
                         </a>
                         {% endif %}
                         <a href="{{ url_for('dashboard') if signed_in else url_for('register') }}"
-                            class="px-5 py-3 bg-surface-variant text-on-surface rounded-xl font-label-bold text-label-bold hover:opacity-85 transition-all">
+                            class="h-11 px-5 grid place-items-center bg-surface-variant text-on-surface rounded-xl font-label-bold text-label-bold hover:opacity-85 transition-all">
                             {{ 'Open settings' if signed_in else 'Create an account' }}
                         </a>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="auth-status">
+            <span class="dot"></span> Inventory sync active
         </div>
     </div>
 </body>

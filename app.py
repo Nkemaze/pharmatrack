@@ -318,6 +318,7 @@ def login():
                         error = block_message
                     else:
                         _clear_attempts(name)
+                        session.permanent = (request.form.get('remember') == 'on')
                         session['user_id'] = user['id']
                         session['user_name'] = user['name']
                         session['role'] = user['role']
