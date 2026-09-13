@@ -1,102 +1,78 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}Administrator Overview - PharmaTrack{% endblock %}
 
 {% block content %}
 <!-- Welcome header (mirrors the Flutter admin console) -->
-<div class="mb-8">
-    <p class="font-label-bold text-label-bold uppercase tracking-wider text-secondary mb-1">Welcome back, Admin</p>
-    <h2 class="font-headline-md text-display text-on-surface tracking-tight">Platform Overview</h2>
-</div>
+<p class="text-xs font-bold tracking-[0.15em] uppercase text-primary mb-1">Welcome back, Admin</p>
+<h2 class="text-[28px] font-semibold tracking-tight text-on-surface mb-8">Platform Overview</h2>
 
-<!-- Stat cards row -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-gutter">
-    <div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-xl">
-        <div class="flex items-center justify-between mb-3">
-            <span class="material-symbols-outlined text-2xl text-secondary">local_pharmacy</span>
-            <span class="font-label-bold text-label-bold text-on-surface-variant uppercase">Total Pharmacies</span>
+<!-- Stat cards row (5 across, like the Flutter overview) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-5">
+        <div class="flex items-center justify-between gap-1">
+            <span class="material-symbols-outlined text-[26px] text-secondary">local_pharmacy</span>
+            <span class="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant text-right">Total Pharmacies</span>
         </div>
-        <p class="font-display text-display text-on-surface">{{ stats.total }}</p>
+        <p class="mt-3 text-[32px] font-semibold tracking-tight text-on-surface leading-none">{{ stats.total }}</p>
     </div>
-    <div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-xl">
-        <div class="flex items-center justify-between mb-3">
-            <span class="material-symbols-outlined text-2xl text-amber-600">pending_actions</span>
-            <span class="font-label-bold text-label-bold text-on-surface-variant uppercase">Pending Approval</span>
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-5">
+        <div class="flex items-center justify-between gap-1">
+            <span class="material-symbols-outlined text-[26px] text-amber-600">pending_actions</span>
+            <span class="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant text-right">Pending Setup</span>
         </div>
-        <p class="font-display text-display text-amber-600">{{ stats.pending }}</p>
+        <p class="mt-3 text-[32px] font-semibold tracking-tight text-on-surface leading-none">{{ stats.pending }}</p>
     </div>
-    <div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-xl">
-        <div class="flex items-center justify-between mb-3">
-            <span class="material-symbols-outlined text-2xl text-green-600">check_circle</span>
-            <span class="font-label-bold text-label-bold text-on-surface-variant uppercase">Active</span>
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-5">
+        <div class="flex items-center justify-between gap-1">
+            <span class="material-symbols-outlined text-[26px] text-green-600">check_circle</span>
+            <span class="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant text-right">Active</span>
         </div>
-        <p class="font-display text-display text-green-600">{{ stats.active }}</p>
+        <p class="mt-3 text-[32px] font-semibold tracking-tight text-on-surface leading-none">{{ stats.active }}</p>
     </div>
-    <div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-xl">
-        <div class="flex items-center justify-between mb-3">
-            <span class="material-symbols-outlined text-2xl text-error">pause_circle</span>
-            <span class="font-label-bold text-label-bold text-on-surface-variant uppercase">Suspended</span>
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-5">
+        <div class="flex items-center justify-between gap-1">
+            <span class="material-symbols-outlined text-[26px] text-error">pause_circle</span>
+            <span class="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant text-right">Suspended</span>
         </div>
-        <p class="font-display text-display text-error">{{ stats.suspended }}</p>
+        <p class="mt-3 text-[32px] font-semibold tracking-tight text-on-surface leading-none">{{ stats.suspended }}</p>
     </div>
-    <div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-xl">
-        <div class="flex items-center justify-between mb-3">
-            <span class="material-symbols-outlined text-2xl text-on-surface-variant">block</span>
-            <span class="font-label-bold text-label-bold text-on-surface-variant uppercase">Rejected</span>
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-5">
+        <div class="flex items-center justify-between gap-1">
+            <span class="material-symbols-outlined text-[26px] text-on-surface-variant">block</span>
+            <span class="text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant text-right">Rejected</span>
         </div>
-        <p class="font-display text-display text-on-surface-variant">{{ stats.rejected }}</p>
+        <p class="mt-3 text-[32px] font-semibold tracking-tight text-on-surface leading-none">{{ stats.rejected }}</p>
     </div>
 </div>
 
 <!-- Recent Pharmacies panel -->
-<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden mt-gutter">
-    <div class="p-5 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-        <h3 class="font-headline-md text-headline-md flex items-center gap-2">
-            <span class="material-symbols-outlined text-secondary">history</span>
-            Recent Pharmacies
-        </h3>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl overflow-hidden mt-8">
+    <div class="p-6 border-b border-outline-variant flex justify-between items-center">
+        <h3 class="text-xl font-semibold text-on-surface">Recent Pharmacies</h3>
         <a href="{{ url_for('manage_pharmacies') }}"
-            class="text-secondary font-label-bold text-label-bold hover:underline flex items-center gap-1">
+            class="text-secondary font-label-bold text-label-bold font-semibold hover:underline flex items-center gap-1">
             View all
-            <span class="material-symbols-outlined text-base">arrow_forward</span>
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
         </a>
     </div>
     {% if recent %}
     <div class="divide-y divide-outline-variant">
         {% for p in recent %}
-        <div class="px-5 py-3.5 flex items-center gap-4 hover:bg-surface-container-low/50 transition-colors">
+        <div class="px-6 py-3 flex items-center gap-4">
             <div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0">
                 <span class="material-symbols-outlined text-secondary">local_pharmacy</span>
             </div>
             <div class="min-w-0 flex-grow">
-                <p class="font-body-md text-body-md font-medium text-on-surface truncate">{{ p.name }}</p>
-                <p class="text-body-sm text-on-surface-variant truncate">{{ p.applicant_name or '—' }}</p>
+                <p class="text-sm font-semibold text-on-surface truncate">{{ p.name }}</p>
+                <p class="text-xs text-on-surface-variant truncate">{{ p.applicant_name or '—' }}</p>
             </div>
-            <span class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide shrink-0
-                {% if p.status == 'active' %}bg-green-500/15 text-green-600 dark:text-green-400
-                {% elif p.status == 'pending' %}bg-amber-500/15 text-amber-700 dark:text-amber-400
-                {% elif p.status == 'suspended' %}bg-error/15 text-error
-                {% else %}bg-on-surface-variant/10 text-on-surface-variant{% endif %}">{{ p.status }}</span>
+            {% include "_status_badge.html" %}
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <p class="text-center text-on-surface-variant py-10 px-5 text-body-md">No pharmacies yet. When a pharmacy registers,
-        its application will appear here for approval.</p>
+    <p class="text-center text-on-surface-variant py-10 px-6 text-body-md">No pharmacies yet. Create your first
+        pharmacy in the Pharmacies tab.</p>
     {% endif %}
 </div>
-
-<!-- Awaiting approval call-to-action -->
-{% if stats.pending > 0 %}
-<div class="bg-secondary-container text-on-secondary-container mt-gutter rounded-xl p-5 flex flex-wrap items-center gap-4 justify-between">
-    <div class="flex items-center gap-3">
-        <span class="material-symbols-outlined">hourglass_top</span>
-        <p class="font-body-md text-body-md font-medium">{{ stats.pending }} application{{ 's' if stats.pending != 1 else '' }}
-            awaiting your approval.</p>
-    </div>
-    <a href="{{ url_for('manage_pharmacies') }}"
-        class="bg-on-secondary-container text-secondary-container font-label-bold text-label-bold px-5 py-2 rounded-lg hover:opacity-90 transition-opacity font-semibold">
-        Review Applications
-    </a>
-</div>
-{% endif %}
 {% endblock %}

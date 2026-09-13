@@ -1,61 +1,50 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}Manage Pharmacies - PharmaTrack{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto w-full">
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+<div class="max-w-6xl w-full mx-auto">
+    <!-- Header: title + subtitle + Add Pharmacy button -->
+    <div class="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
-            <a href="{{ url_for('settings') }}"
-                class="text-secondary font-label-bold text-label-bold hover:underline flex items-center gap-1">
-                <span class="material-symbols-outlined text-base">&larr;</span> Back to Settings
-            </a>
-            <h2 class="font-headline-md text-display text-on-surface tracking-tight mt-2">Pharmacy Accounts</h2>
-            <p class="font-body-md text-on-surface-variant">Create and manage pharmacy accounts across the PharmaTrack
+            <h2 class="text-[28px] font-semibold tracking-tight text-on-surface">Pharmacies</h2>
+            <p class="text-sm text-on-surface-variant mt-1.5">Create and manage pharmacy accounts across the PharmaTrack
                 network. Pending applications cannot sign in until you approve them.</p>
         </div>
         <button type="button" id="add-pharmacy-open"
-            class="bg-secondary text-on-secondary font-label-bold text-label-bold px-5 py-2.5 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 font-semibold">
-            <span class="material-symbols-outlined">add</span> Add Pharmacy
+            class="bg-secondary text-on-secondary font-label-bold text-label-bold px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 font-semibold">
+            <span class="material-symbols-outlined text-lg">add</span> Add Pharmacy
         </button>
     </div>
 
     {% if success %}
-    <div class="mb-5 px-4 py-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg text-body-sm flex items-center gap-2">
+    <div class="mb-6 px-4 py-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg text-body-sm flex items-center gap-2">
         <span class="material-symbols-outlined text-base">check_circle</span>
         {{ success }}
     </div>
     {% elif error %}
-    <div class="mb-5 px-4 py-3 bg-error/10 text-error rounded-lg text-body-sm flex items-center gap-2">
+    <div class="mb-6 px-4 py-3 bg-error/10 text-error rounded-lg text-body-sm flex items-center gap-2">
         <span class="material-symbols-outlined text-base">error</span>
         {{ error }}
     </div>
     {% endif %}
 
-    {% set pending = pharmacies | selectattr('status', 'equalto', 'pending') | list %}
-    {% if pending %}
-    <div class="mb-5 px-4 py-3 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-lg text-body-sm flex items-center gap-2">
-        <span class="material-symbols-outlined text-base">hourglass_top</span>
-        {{ pending | length }} application{{ 's' if pending | length != 1 else '' }} awaiting your approval.
-    </div>
-    {% endif %}
-
     {% if not pharmacies %}
-    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-10 text-center">
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-10 text-center">
         <span class="material-symbols-outlined text-4xl text-on-surface-variant">local_pharmacy</span>
-        <p class="font-body-md text-on-surface-variant mt-3">No pharmacies yet. Once pharmacies register, their
-            applications will appear here for approval.</p>
+        <p class="font-body-md text-on-surface-variant mt-3">No pharmacies yet. Create your first pharmacy with the Add
+            Pharmacy button.</p>
     </div>
     {% else %}
-    <div class="flex flex-wrap items-center gap-3 mb-4">
-        <div class="relative flex-grow sm:flex-grow-0 sm:w-72">
+    <div class="flex flex-wrap items-center gap-4 mb-4">
+        <div class="relative w-[360px]">
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
             <input id="pharmacy-search" type="text" placeholder="Search by name or email..."
-                class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-1 focus:ring-secondary" />
+                class="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-md focus:outline-none focus:ring-1 focus:ring-secondary" />
         </div>
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg">
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg">
             <span class="font-label-bold text-label-bold text-on-surface-variant">Status:</span>
             <select id="pharmacy-status-filter"
-                class="bg-transparent text-body-md text-on-surface font-medium focus:outline-none">
+                class="bg-transparent text-body-md text-on-surface font-medium focus:outline-none ml-1">
                 <option value="all">All</option>
                 <option value="active">Active</option>
                 <option value="pending">Pending Setup</option>
@@ -63,86 +52,108 @@
                 <option value="rejected">Rejected</option>
             </select>
         </div>
-        <span id="pharmacy-count" class="ml-auto text-body-sm text-on-surface-variant"></span>
+        <span id="pharmacy-count" class="ml-auto text-[13px] text-on-surface-variant"></span>
     </div>
 
-    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <table class="w-full text-left border-collapse">
-            <thead class="bg-surface-container-low border-b border-outline-variant">
-                <tr>
-                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Pharmacy</th>
-                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Applicant</th>
-                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Registered</th>
-                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase">Status</th>
-                    <th class="px-6 py-cell-padding-v font-label-bold text-label-bold text-on-surface-variant uppercase text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-outline-variant">
-                {% for p in pharmacies %}
-                <tr class="pharmacy-row {% if p.status == 'pending' %}bg-amber-500/5{% endif %}"
-                    data-name="{{ p.name|lower }}" data-email="{{ (p.applicant_name or '')|lower }}"
-                    data-status="{{ p.status }}">
-                    <td class="px-6 py-cell-padding-v">
-                        <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0">
-                                <span class="material-symbols-outlined text-secondary">local_pharmacy</span>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="font-body-md text-body-md text-on-surface truncate">{{ p.name }}</p>
-                                <p class="text-body-sm text-on-surface-variant truncate">{{ p.city or '—' }}{% if p.city and p.phone %} &middot; {% endif %}{{ p.phone or '' }}</p>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="px-6 py-cell-padding-v">
-                        <p class="font-body-md text-body-md text-on-surface">{{ p.applicant_name or '—' }}</p>
-                        <p class="text-body-sm text-on-surface-variant capitalize">{{ p.applicant_status or '' }}</p>
-                    </td>
-                    <td class="px-6 py-cell-padding-v font-body-md text-body-md text-on-surface-variant">{{ p.created_at[:10] if p.created_at else '—' }}</td>
-                    <td class="px-6 py-cell-padding-v">
-                        <span class="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide
-                            {% if p.status == 'active' %}bg-green-500/15 text-green-600 dark:text-green-400
-                            {% elif p.status == 'pending' %}bg-amber-500/15 text-amber-700 dark:text-amber-400
-                            {% elif p.status == 'rejected' %}bg-on-surface-variant/10 text-on-surface-variant
-                            {% else %}bg-error/15 text-error{% endif %}">
-                            {{ p.status }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-cell-padding-v text-right whitespace-nowrap">
-                        {% if p.status == 'pending' %}
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='approve') }}" style="display:inline;">
-                            <button type="submit" class="text-green-600 dark:text-green-400 font-label-bold text-label-bold text-sm hover:underline mr-2">Approve</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='reject') }}" style="display:inline;"
-                            onsubmit="return confirm('Reject {{ p.name }} application?');">
-                            <button type="submit" class="text-on-surface-variant font-label-bold text-label-bold text-sm hover:underline mr-2">Reject</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}" style="display:inline;"
-                            onsubmit="return confirm('Delete {{ p.name }} application? This cannot be undone.');">
-                            <button type="submit" class="text-error font-label-bold text-label-bold text-sm hover:underline">Delete</button>
-                        </form>
-                        {% elif p.status == 'active' %}
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='suspend') }}" style="display:inline;"
-                            onsubmit="return confirm('Suspend {{ p.name }}? Nobody at this pharmacy will be able to sign in.');">
-                            <button type="submit" class="text-error font-label-bold text-label-bold text-sm hover:underline">Suspend</button>
-                        </form>
-                        {% elif p.status == 'suspended' %}
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='activate') }}" style="display:inline;">
-                            <button type="submit" class="text-green-600 dark:text-green-400 font-label-bold text-label-bold text-sm hover:underline">Activate</button>
-                        </form>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='activate') }}" style="display:inline;">
-                            <button type="submit" class="text-green-600 dark:text-green-400 font-label-bold text-label-bold text-sm hover:underline mr-2">Activate</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}" style="display:inline;"
-                            onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
-                            <button type="submit" class="text-error font-label-bold text-label-bold text-sm hover:underline">Delete</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- Table -->
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl overflow-hidden">
+        <div class="grid grid-cols-12 gap-0 px-4 py-4 bg-surface-container-low border-b border-outline-variant">
+            <span class="col-span-3 text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Pharmacy</span>
+            <span class="col-span-3 text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Email</span>
+            <span class="col-span-2 text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Status</span>
+            <span class="col-span-2 text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Created</span>
+            <span class="col-span-2 text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Actions</span>
+        </div>
+        {% if not pharmacies %}
+        <div class="py-16 text-center text-on-surface-variant">No pharmacies match the current filter.</div>
+        {% else %}
+        <div class="divide-y divide-outline-variant">
+            {% for p in pharmacies %}
+            <div class="grid grid-cols-12 items-center px-4 py-4 {{ 'bg-amber-500/5' if p.status == 'pending' }} pharmacy-row"
+                data-name="{{ p.name|lower }}" data-email="{{ (p.applicant_name or '')|lower }}" data-status="{{ p.status }}">
+                <div class="col-span-3 flex items-center gap-3 min-w-0 pr-2">
+                    <div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0">
+                        <span class="material-symbols-outlined text-secondary">local_pharmacy</span>
+                    </div>
+                    <p class="text-sm font-semibold text-on-surface truncate">{{ p.name }}</p>
+                </div>
+                <div class="col-span-3 truncate pr-2">
+                    <p class="text-[13px] text-on-surface truncate">{{ p.applicant_name or '—' }}</p>
+                    <p class="text-xs text-on-surface-variant truncate capitalize">{{ p.applicant_status or '' }}</p>
+                </div>
+                <div class="col-span-2">{% include "_status_badge.html" %}</div>
+                <div class="col-span-2 text-xs text-on-surface-variant">{{ p.created_at[:10] if p.created_at else '—' }}</div>
+                <div class="col-span-2 flex items-center gap-1">
+                    {% if p.status == 'pending' %}
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='approve') }}">
+                        <button type="submit" title="Approve"
+                            class="p-1.5 rounded-md text-green-600 hover:bg-green-500/10 transition-colors">
+                            <span class="material-symbols-outlined">check_circle</span>
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='reject') }}"
+                        onsubmit="return confirm('Reject {{ p.name }} application?');">
+                        <button type="submit" title="Reject"
+                            class="p-1.5 rounded-md text-on-surface-variant hover:bg-on-surface-variant/10 transition-colors">
+                            <span class="material-symbols-outlined">block</span>
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
+                        onsubmit="return confirm('Delete {{ p.name }} application? This cannot be undone.');">
+                        <button type="submit" title="Delete"
+                            class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
+                            <span class="material-symbols-outlined">delete_outline</span>
+                        </button>
+                    </form>
+                    {% elif p.status == 'active' %}
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='suspend') }}"
+                        onsubmit="return confirm('Suspend {{ p.name }}? Nobody at this pharmacy will be able to sign in.');">
+                        <button type="submit" title="Suspend"
+                            class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
+                            <span class="material-symbols-outlined">pause_circle</span>
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
+                        onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                        <button type="submit" title="Delete"
+                            class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
+                            <span class="material-symbols-outlined">delete_outline</span>
+                        </button>
+                    </form>
+                    {% elif p.status == 'suspended' %}
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='activate') }}">
+                        <button type="submit" title="Activate"
+                            class="p-1.5 rounded-md text-green-600 hover:bg-green-500/10 transition-colors">
+                            <span class="material-symbols-outlined">play_circle</span>
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
+                        onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                        <button type="submit" title="Delete"
+                            class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
+                            <span class="material-symbols-outlined">delete_outline</span>
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='activate') }}">
+                        <button type="submit" title="Activate"
+                            class="p-1.5 rounded-md text-green-600 hover:bg-green-500/10 transition-colors">
+                            <span class="material-symbols-outlined">play_circle</span>
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
+                        onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                        <button type="submit" title="Delete"
+                            class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
+                            <span class="material-symbols-outlined">delete_outline</span>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -153,8 +164,8 @@
     <div class="relative bg-surface-container-lowest border border-outline-variant rounded-xl w-full max-w-lg mx-auto mt-16 shadow-lg">
         <div class="px-6 py-4 border-b border-outline-variant flex items-start justify-between bg-surface-container-low rounded-t-xl">
             <div>
-                <h3 id="add-pharmacy-title" class="font-headline-md text-headline-md text-on-surface">Add Pharmacy</h3>
-                <p class="text-body-sm text-on-surface-variant mt-0.5">Create a pharmacy account with temporary credentials</p>
+                <h3 id="add-pharmacy-title" class="text-xl font-semibold text-on-surface">Add Pharmacy</h3>
+                <p class="text-[13px] text-on-surface-variant mt-0.5">Create a pharmacy account with temporary credentials</p>
             </div>
             <button type="button" data-dialog-close class="text-on-surface-variant hover:text-on-surface p-1" aria-label="Close">
                 <span class="material-symbols-outlined">close</span>
@@ -162,19 +173,19 @@
         </div>
         <form method="POST" action="{{ url_for('add_pharmacy') }}" class="p-6 space-y-4" autocomplete="off">
             <div>
-                <label class="font-label-bold text-label-bold text-on-surface uppercase block mb-1.5" for="ph-name">Pharmacy Name</label>
+                <label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant block mb-1.5" for="ph-name">Pharmacy Name</label>
                 <input id="ph-name" name="name" required maxlength="120" placeholder="e.g. City Care Pharmacy"
                     value="{{ form.name if form and form.get('name') else request.args.get('name', '') }}"
                     class="w-full px-3.5 py-2 bg-surface-container-low border border-outline-variant rounded-lg focus:outline-none focus:ring-1 focus:ring-secondary" />
             </div>
             <div>
-                <label class="font-label-bold text-label-bold text-on-surface uppercase block mb-1.5" for="ph-email">Email Address</label>
+                <label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant block mb-1.5" for="ph-email">Email Address</label>
                 <input id="ph-email" name="email" type="email" required maxlength="256" placeholder="pharmacy@pharmatrack.com"
                     value="{{ form.email if form and form.get('email') else request.args.get('email', '') }}"
                     class="w-full px-3.5 py-2 bg-surface-container-low border border-outline-variant rounded-lg focus:outline-none focus:ring-1 focus:ring-secondary" />
             </div>
             <div>
-                <label class="font-label-bold text-label-bold text-on-surface uppercase block mb-1.5" for="ph-password">Temporary Password</label>
+                <label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant block mb-1.5" for="ph-password">Temporary Password</label>
                 <div class="flex gap-2">
                     <input id="ph-password" name="password" type="text" required minlength="8" placeholder="min. 8 characters"
                         value="{{ form.password if form and form.get('password') }}"
@@ -184,14 +195,20 @@
                         <span class="material-symbols-outlined text-base">casino</span> Generate
                     </button>
                 </div>
-                <p class="text-body-sm text-on-surface-variant mt-1.5">After creation, share the email and temporary password
+                <p class="text-xs text-on-surface-variant mt-1.5">After creation, share the email and temporary password
                     with the pharmacy. They can change it later.</p>
             </div>
+            {% if error %}
+            <div class="px-3 py-2 bg-error/10 text-error rounded-lg text-body-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">error</span>
+                {{ error }}
+            </div>
+            {% endif %}
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" data-dialog-close
-                    class="px-4 py-2 border border-outline-variant rounded-lg text-body-sm text-on-surface hover:bg-surface-container-low">Cancel</button>
+                    class="px-4 py-2 border border-outline-variant rounded-lg text-sm text-on-surface hover:bg-surface-container-low">Cancel</button>
                 <button type="submit"
-                    class="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-body-sm font-label-bold font-semibold hover:opacity-90">Create Account</button>
+                    class="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-sm font-label-bold font-semibold hover:opacity-90">Create Account</button>
             </div>
         </form>
     </div>

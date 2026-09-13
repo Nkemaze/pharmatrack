@@ -413,7 +413,8 @@ class ExpiryRegressionTest(unittest.TestCase):
         self._get_session()
         r = self.client.get("/")
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
-        self.assertIn(b"Dashboard", r.data)
+        # The admin console (Overview) renders without crashing on dirty data.
+        self.assertIn(b"Platform Overview", r.data)
 
 
 class AdminAddPharmacyTest(unittest.TestCase):

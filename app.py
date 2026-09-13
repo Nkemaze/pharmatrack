@@ -495,7 +495,8 @@ def _admin_dashboard():
     )[:6]
     return render_template(
         'admin_dashboard.html',
-        active_page='dashboard',
+        active_page='overview',
+        topbar_title='Administrator Overview',
         stats=stats,
         recent=recent,
     )
@@ -737,6 +738,7 @@ def manage_pharmacies():
     return render_template(
         'manage_pharmacies.html',
         active_page='pharmacies',
+        topbar_title='Manage Pharmacies',
         pharmacies=get_pharmacies_with_applicant(),
     )
 
@@ -778,6 +780,7 @@ def add_pharmacy():
             return render_template(
                 'manage_pharmacies.html',
                 active_page='pharmacies',
+                topbar_title='Manage Pharmacies',
                 pharmacies=get_pharmacies_with_applicant(),
                 success=(f"Pharmacy account created. Credentials for "
                          f"{email} are ready to share."),
@@ -786,6 +789,7 @@ def add_pharmacy():
     return render_template(
         'manage_pharmacies.html',
         active_page='pharmacies',
+        topbar_title='Manage Pharmacies',
         pharmacies=get_pharmacies_with_applicant(),
         error=error,
         form=request.form,
