@@ -39,8 +39,9 @@
     <aside
         class="docked fixed left-0 top-0 h-full w-[240px] flex flex-col bg-primary-container py-margin-page border-r border-outline-variant z-50">
         <div class="px-6 mb-10">
-            <h1 class="text-headline-md font-headline-md font-bold text-surface-bright">PharmaTrack</h1>
-            <p class="font-body-md text-body-md text-on-primary-container opacity-70">Pharmacy Manager</p>
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="PharmaTrack"
+                class="w-[168px] max-w-full h-auto object-contain" />
+            <p class="font-body-md text-body-md text-on-primary-container opacity-70 mt-2">Pharmacy Manager</p>
         </div>
         <nav class="flex-grow">
             <a class="flex items-center gap-stack-gap {% if active_page == 'dashboard' %}bg-secondary-container text-on-secondary-container border-l-4 border-secondary{% else %}text-on-primary-container hover:bg-surface-variant/10{% endif %} px-4 py-3 font-label-bold text-label-bold transition-all duration-150"

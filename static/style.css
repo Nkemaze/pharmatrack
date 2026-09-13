@@ -94,6 +94,12 @@ html.dark .auth-blob-3 { background: radial-gradient(circle, rgba(42, 52, 72, 0.
     color: var(--color-secondary);
 }
 .auth-brand-logo .auth-brand-icon .material-symbols-outlined { font-size: 26px; }
+.auth-brand-logo img {
+    height: 52px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
 .auth-tagline {
     margin-top: 4px;
     text-align: center;
