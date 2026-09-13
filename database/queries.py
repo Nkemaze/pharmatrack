@@ -8,6 +8,18 @@ import time
 from database.db import get_db_connection
 
 
+def _parse_iso_date(value):
+    """Parse a stored 'YYYY-MM-DD' date into a date object. Never raises:
+    returns None for empty, null, or malformed values so one dirty batch row
+    can't take down the dashboard."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
 def revoke_token(jti, token_type, user_id, expires_at):
     """Store a JWT identifier so it can no longer be used."""
     conn = get_db_connection()
@@ -324,12 +336,13 @@ def get_product_list(search=None, pharmacy_id=None):
     for row in rows:
         expiry_status = "Fine"
         if row["nearest_expiry"]:
-            expiry_date = datetime.strptime(row["nearest_expiry"], "%Y-%m-%d").date()
-            days_left = (expiry_date - today).days
-            if days_left < 0:
-                expiry_status = "Expired"
-            elif days_left <= 90:
-                expiry_status = "Expiring Soon"
+            expiry_date = _parse_iso_date(row["nearest_expiry"])
+            if expiry_date is not None:
+                days_left = (expiry_date - today).days
+                if days_left < 0:
+                    expiry_status = "Expired"
+                elif days_left <= 90:
+                    expiry_status = "Expiring Soon"
 
         products.append({
             "id": row["id"],
@@ -481,12 +494,13 @@ def get_product_detail(product_id, pharmacy_id=None):
         total_stock += qty
         status = "Healthy"
         if b["expiry_date"]:
-            expiry_date = datetime.strptime(b["expiry_date"], "%Y-%m-%d").date()
-            days_left = (expiry_date - today).days
-            if days_left < 0:
-                status = "Expired"
-            elif days_left <= 90:
-                status = "Near Expiry"
+            expiry_date = _parse_iso_date(b["expiry_date"])
+            if expiry_date is not None:
+                days_left = (expiry_date - today).days
+                if days_left < 0:
+                    status = "Expired"
+                elif days_left <= 90:
+                    status = "Near Expiry"
         batches.append({
             "id": b["id"],
             "batch_number": b["batch_number"],
@@ -863,7 +877,9 @@ def get_dashboard_data():
     today = date.today()
     expiry_watch = []
     for b in batch_rows:
-        expiry_date = datetime.strptime(b["expiry_date"], "%Y-%m-%d").date()
+        expiry_date = _parse_iso_date(b["expiry_date"])
+        if expiry_date is None:
+            continue
         days_left = (expiry_date - today).days
         if days_left <= 90:
             expiry_watch.append({

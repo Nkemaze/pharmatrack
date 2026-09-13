@@ -364,5 +364,57 @@ class ErrorHandlingTest(unittest.TestCase):
         self.assertIn("/movements", response.headers["Location"])
 
 
+class ExpiryRegressionTest(unittest.TestCase):
+    """get_dashboard_data must tolerate a product_batch with an empty
+    expiry_date (the single-row scenario that caused a local-only 500
+    when SQLite held dirty data the live PostgreSQL never saw)."""
+
+    def setUp(self):
+        self.client = app.test_client()
+        conn = get_db_connection()
+        try:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            for table in ("token_blocklist", "login_attempt", "loss_report",
+                          "stock_movement", "product_batch", "product",
+                          "settings", "user", "pharmacy"):
+                conn.execute(f"DELETE FROM {table}")
+            conn.commit()
+        finally:
+            conn.close()
+        create_user("DashboardAdmin", "admin", "Safe-Battery-9")
+
+    def _get_session(self):
+        r = self.client.post(
+            "/login",
+            data={"name": "DashboardAdmin", "password": "Safe-Battery-9"},
+            follow_redirects=False,
+        )
+        self.assertEqual(r.status_code, 302)
+
+    def test_empty_expiry_date_does_not_crash_dashboard(self):
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "INSERT INTO pharmacy (id, name, status) VALUES (?, ?, 'active')",
+                ("ph-1", "Test Pharmacy"),
+            )
+            conn.execute(
+                "INSERT INTO product (id, name, pharmacy_id) VALUES (?, ?, ?)",
+                ("prod-1", "Panadol", "ph-1"),
+            )
+            conn.execute(
+                "INSERT INTO product_batch (id, product_id, expiry_date) VALUES (?, ?, '')",
+                ("batch-1", "prod-1"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        self._get_session()
+        r = self.client.get("/")
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        self.assertIn(b"Dashboard", r.data)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

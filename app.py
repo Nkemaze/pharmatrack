@@ -167,11 +167,27 @@ def pharmacist_required(view):
 @app.context_processor
 def inject_globals():
     """Available in every template: the alert badge count, and who's
-    currently logged in (for the sidebar profile section and role checks)."""
+    currently logged in (for the sidebar profile section and role checks).
+
+    Runs for every page — including the error page itself — so the DB
+    lookups are guarded: a database hiccup or a single bad row must never
+    turn an otherwise-fine page (or the 500 page) into a second failure."""
     is_admin = session.get('role') == 'admin'
+    alert_count = 0
+    pending_pharmacy_count = 0
+    if 'user_id' in session:
+        try:
+            alert_count = get_alert_count()
+        except Exception:
+            app.logger.exception('Failed to load alert count for template')
+    if is_admin:
+        try:
+            pending_pharmacy_count = get_pending_pharmacy_count()
+        except Exception:
+            app.logger.exception('Failed to load pending pharmacy count for template')
     return {
-        "alert_count": get_alert_count() if 'user_id' in session else 0,
-        "pending_pharmacy_count": get_pending_pharmacy_count() if is_admin else 0,
+        "alert_count": alert_count,
+        "pending_pharmacy_count": pending_pharmacy_count,
         "current_user_id": session.get('user_id'),
         "current_user_name": session.get('user_name'),
         "current_user_role": session.get('role'),
