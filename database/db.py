@@ -91,7 +91,10 @@ def init_db():
     conn.commit()
     _run_migrations(conn)
     conn.close()
-    print(f"Database ready at {DB_PATH}")
+    if _is_postgres():
+        print(f"Database ready at {os.environ.get('DATABASE_URL')}")
+    else:
+        print(f"Database ready at {DB_PATH}")
 
 
 def _table_columns(conn, table):
@@ -174,6 +177,7 @@ def _run_migrations(conn):
     _add_column(conn, "product", "packet_size", "INTEGER")
     _add_column(conn, "product", "unit_label", "TEXT")
     _add_column(conn, "product", "image_url", "TEXT")
+    _add_column(conn, "product", "low_stock_threshold", "INTEGER")
 
     # Existing installs from before logins gained passwords.
     _add_column(conn, "user", "password_hash", "TEXT")

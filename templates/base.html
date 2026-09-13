@@ -30,6 +30,7 @@
     <script id="tailwind-config" src="{{ url_for('static', filename='tailwind-config.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
 </head>
 
 <body class="flex min-h-screen text-on-surface">
@@ -64,6 +65,13 @@
                 <span class="material-symbols-outlined">report_off</span>
                 <span>Loss Reports</span>
             </a>
+            {% if current_user_role == 'pharmacist' %}
+            <a class="flex items-center gap-stack-gap {% if active_page == 'settings' %}bg-secondary-container text-on-secondary-container border-l-4 border-secondary{% else %}text-on-primary-container hover:bg-surface-variant/10{% endif %} px-4 py-3 font-label-bold text-label-bold transition-all duration-150"
+                href="{{ url_for('pharmacy_profile') }}">
+                <span class="material-symbols-outlined">settings</span>
+                <span>Settings</span>
+            </a>
+            {% endif %}
             {% if current_user_role == 'admin' %}
             <a class="flex items-center gap-stack-gap {% if active_page == 'pharmacies' %}bg-secondary-container text-on-secondary-container border-l-4 border-secondary{% else %}text-on-primary-container hover:bg-surface-variant/10{% endif %} px-4 py-3 font-label-bold text-label-bold transition-all duration-150"
                 href="{{ url_for('manage_pharmacies') }}">

@@ -9,6 +9,7 @@ import unittest
 _TEST_DIRECTORY = tempfile.TemporaryDirectory()
 os.environ["PHARMATRACK_DB_PATH"] = os.path.join(_TEST_DIRECTORY.name, "test-pharmacy.db")
 os.environ["JWT_SECRET_KEY"] = "test-only-jwt-secret-that-is-long-enough"
+os.environ["DATABASE_URL"] = ""  # force SQLite even though .env may set one
 os.environ.pop("PHARMATRACK_ENV", None)
 
 from api import auth
@@ -49,6 +50,7 @@ class ApiTestCase(unittest.TestCase):
         body = {
             "name": name,
             "category": "Test",
+            "strength": "500mg",
             "dosage_form": "Tablet",
             "batch_number": f"{name[:4]}-001",
             "expiry_date": "2027-01-01",
@@ -120,7 +122,9 @@ class ApiTestCase(unittest.TestCase):
         response = self.client.post(
             "/api/v1/products",
             headers=pharmacy_headers,
-            json={"name": "Bad Boolean", "requires_prescription": "false"},
+            json={"name": "Bad Boolean", "category": "Test", "strength": "500mg",
+                  "dosage_form": "Tablet", "batch_number": "BB-1",
+                  "expiry_date": "2027-01-01", "requires_prescription": "false"},
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"], "requires_prescription must be true or false.")

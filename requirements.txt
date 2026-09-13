@@ -5,3 +5,4 @@ Flask-CORS
 waitress
 gunicorn
 psycopg[binary]
+python-dotenv

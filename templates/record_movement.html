@@ -9,6 +9,16 @@
             regulatory compliance.</p>
     </div>
 
+    {% if error %}
+    <div class="mb-6 bg-error-container border-l-4 border-error p-4 flex items-start gap-4">
+        <span class="material-symbols-outlined text-on-error-container">error</span>
+        <div>
+            <p class="font-label-bold text-on-error-container">Movement not recorded</p>
+            <p class="font-body-sm text-on-error-container opacity-80">{{ error }}</p>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="hidden mb-6 bg-error-container border-l-4 border-error p-4 flex items-start gap-4"
         id="controlled-alert">
         <span class="material-symbols-outlined text-on-error-container">warning</span>
@@ -63,13 +73,13 @@
                         <select
                             class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md appearance-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
                             id="movement-type" name="movement_type">
-                            <option value="sale">Sale (Dispensing)</option>
-                            <option value="receipt">Stock Receipt</option>
-                            <option value="adjustment">Inventory Adjustment</option>
-                            <option value="transfer">Inter-Pharmacy Transfer</option>
-                            <option value="return">Customer Return</option>
-                            <option value="destruction">Scheduled Destruction</option>
-                            <option value="loss">Loss / Damaged</option>
+                            <option value="sale" {% if form_data.get('movement_type') == 'sale' %}selected{% endif %}>Sale (Dispensing)</option>
+                            <option value="receipt" {% if form_data.get('movement_type') == 'receipt' %}selected{% endif %}>Stock Receipt</option>
+                            <option value="adjustment" {% if form_data.get('movement_type') == 'adjustment' %}selected{% endif %}>Inventory Adjustment</option>
+                            <option value="transfer" {% if form_data.get('movement_type') == 'transfer' %}selected{% endif %}>Inter-Pharmacy Transfer</option>
+                            <option value="return" {% if form_data.get('movement_type') == 'return' %}selected{% endif %}>Customer Return</option>
+                            <option value="destruction" {% if form_data.get('movement_type') == 'destruction' %}selected{% endif %}>Scheduled Destruction</option>
+                            <option value="loss" {% if form_data.get('movement_type') == 'loss' %}selected{% endif %}>Loss / Damaged</option>
                         </select>
                         <span
                             class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-outline">unfold_more</span>
@@ -80,7 +90,7 @@
                     <div class="flex items-center">
                         <input
                             class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                            min="1" type="number" name="quantity" value="1" required />
+                            min="1" type="number" name="quantity" value="{{ form_data.get('quantity', '1') }}" required />
                         <span class="ml-3 font-label-bold text-on-surface-variant whitespace-nowrap">Units</span>
                     </div>
                 </div>
@@ -89,26 +99,27 @@
                     <select
                         class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
                         name="adjustment_direction">
-                        <option value="remove">Remove stock (-)</option>
-                        <option value="add">Add stock (+)</option>
+                        <option value="remove" {% if form_data.get('adjustment_direction') == 'remove' %}selected{% endif %}>Remove stock (-)</option>
+                        <option value="add" {% if form_data.get('adjustment_direction') == 'add' %}selected{% endif %}>Add stock (+)</option>
                     </select>
                 </div>
                 <div class="space-y-2" id="reference-container">
                     <label class="block font-label-bold text-label-bold text-on-surface" id="ref-label">Reference /
                         Invoice #</label>
-                    <input
-                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                        name="reference_number" id="reference-number-field" placeholder="REF-000000" type="text" />
+<input
+                            class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                            name="reference_number" id="reference-number-field" placeholder="REF-000000" type="text"
+                            value="{{ form_data.get('reference_number', '') }}" />
                     <input type="hidden" name="prescription_number" id="prescription-number-field">
                 </div>
             </div>
 
             <div class="space-y-2" id="reason-container">
                 <label class="block font-label-bold text-label-bold text-on-surface">Reason for Movement</label>
-                <textarea
-                    class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                    name="reason" placeholder="Please specify the reason for this stock adjustment or loss..."
-                    rows="3"></textarea>
+<textarea
+                            class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                            name="reason" placeholder="Please specify the reason for this stock adjustment or loss..."
+                            rows="3">{{ form_data.get('reason', '') }}</textarea>
             </div>
 
             <div class="hidden animate-in fade-in slide-in-from-top-4 duration-300" id="counterparty-section">

@@ -57,8 +57,13 @@ def add_product():
             'requires_prescription', 'is_controlled', 'batch_number',
             'expiry_date', 'initial_quantity',
             'price_per_unit', 'price_per_packet', 'packet_size',
-            'unit_label', 'image_url',
+            'unit_label', 'image_url', 'low_stock_threshold',
         })
+        missing = [f for f in ('name', 'category', 'strength', 'dosage_form',
+                               'batch_number', 'expiry_date')
+                   if not (data.get(f) or '').strip()]
+        if missing:
+            return _api_error('Missing required fields: ' + ', '.join(missing))
         product_id = create_product(
             name=required_string(data, 'name'),
             category=optional_string(data, 'category'),
@@ -77,6 +82,7 @@ def add_product():
             packet_size=data.get('packet_size'),
             unit_label=optional_string(data, 'unit_label'),
             image_url=optional_string(data, 'image_url'),
+            low_stock_threshold=integer(data, 'low_stock_threshold', default=None, minimum=1),
         )
     except (TypeError, ValidationError, ValueError) as exc:
         return _api_error(str(exc))
@@ -95,7 +101,7 @@ def edit_product(product_id):
             'name', 'category', 'strength', 'dosage_form', 'barcode',
             'requires_prescription', 'is_controlled',
             'price_per_unit', 'price_per_packet', 'packet_size',
-            'unit_label', 'image_url',
+            'unit_label', 'image_url', 'low_stock_threshold',
         })
         if not data:
             return _api_error('At least one field must be provided.')
@@ -113,6 +119,8 @@ def edit_product(product_id):
             packet_size=data.get('packet_size', existing.get('packet_size')),
             unit_label=optional_string(data, 'unit_label', default=existing.get('unit_label')),
             image_url=optional_string(data, 'image_url', default=existing.get('image_url')),
+            low_stock_threshold=integer(data, 'low_stock_threshold',
+                                        default=existing.get('low_stock_threshold'), minimum=1),
         )
     except (ValidationError, ValueError) as exc:
         return _api_error(str(exc))

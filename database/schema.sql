@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS product (
     packet_size INTEGER,
     unit_label TEXT,
     image_url TEXT,
+    low_stock_threshold INTEGER,     -- NULL = use the global setting
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (pharmacy_id) REFERENCES pharmacy(id)
 );
@@ -134,7 +135,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Portable upsert: ON CONFLICT DO NOTHING works on SQLite 3.24+ and PostgreSQL
-INSERT INTO settings (key, value) VALUES ('low_stock_threshold', '100')
+INSERT INTO settings (key, value) VALUES ('low_stock_threshold', '10')
   ON CONFLICT(key) DO NOTHING;
 INSERT INTO settings (key, value) VALUES ('pharmacy_name', 'PharmaTrack Pharmacy')
   ON CONFLICT(key) DO NOTHING;

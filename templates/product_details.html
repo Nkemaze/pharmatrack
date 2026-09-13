@@ -39,6 +39,10 @@
                 <span class="text-on-surface font-headline-md text-headline-md">{{ "{:,}".format(product.total_stock) }}
                     <span class="text-body-sm font-body-sm opacity-60">Total Units</span></span>
             </div>
+            {% if product.low_stock_threshold %}
+            <p class="text-body-sm font-body-sm text-on-surface-variant">Low stock alert below
+                {{ product.low_stock_threshold }} units</p>
+            {% endif %}
         </div>
     </div>
 

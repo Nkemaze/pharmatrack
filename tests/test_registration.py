@@ -19,7 +19,7 @@ _TEST_DIRECTORY = tempfile.TemporaryDirectory()
 os.environ["PHARMATRACK_DB_PATH"] = os.path.join(_TEST_DIRECTORY.name, "test-registration.db")
 os.environ["JWT_SECRET_KEY"] = "test-only-jwt-secret-for-registration-flow"
 os.environ["PHARMATRACK_HOSTED"] = "1"
-os.environ.pop("DATABASE_URL", None)
+os.environ["DATABASE_URL"] = ""  # force SQLite (desktop+sales) even though .env may set one
 os.environ.pop("PHARMATRACK_ENV", None)
 
 from app import app

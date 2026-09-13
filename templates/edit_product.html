@@ -5,9 +5,19 @@
 <div class="max-w-3xl mx-auto w-full">
     <div class="mb-8">
         <h2 class="font-headline-md text-display text-on-surface mb-2">Edit Product</h2>
-        <p class="font-body-md text-on-surface-variant">Update this product's details. Stock levels are never edited
-            directly — use Record Movement for that.</p>
+        <p class="font-body-md text-on-surface-variant">Update this product's details, batch numbers and expiry
+            dates. Stock levels are never edited directly — use Record Movement for that.</p>
     </div>
+
+    {% if error %}
+    <div class="mb-6 bg-error-container border-l-4 border-error p-4 flex items-start gap-4">
+        <span class="material-symbols-outlined text-on-error-container">error</span>
+        <div>
+            <p class="font-label-bold text-on-error-container">Product not saved</p>
+            <p class="font-body-sm text-on-error-container opacity-80">{{ error }}</p>
+        </div>
+    </div>
+    {% endif %}
 
     <form method="POST" class="bg-surface-container-lowest border border-outline-variant p-6 rounded-lg space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
@@ -101,6 +111,43 @@
                         class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
                         type="url" name="image_url" value="{{ product.image_url or '' }}" placeholder="https://.../drug.jpg">
                 </div>
+                <div class="space-y-2 md:col-span-3">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Low Stock Alert Below (units)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="number" name="low_stock_threshold" min="1" placeholder="Pharmacy default"
+                        value="{{ product.low_stock_threshold or '' }}">
+                    <p class="text-body-sm text-on-surface-variant">Leave blank to use the pharmacy-wide default set in Settings.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t border-outline-variant">
+            <h3 class="font-headline-md text-headline-md text-on-surface mb-1">Batches &amp; Expiry</h3>
+            <p class="font-body-sm text-on-surface-variant mb-4">Update batch numbers and expiry dates here. Changing an
+                expiry corrects the batch status (Expired / Near Expiry / Healthy). Stock levels still only change via
+                Record Movement.</p>
+            <div class="space-y-4">
+                {% for batch in product.batches %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter bg-surface border border-outline-variant rounded-lg p-4">
+                    <input type="hidden" name="batch_id" value="{{ batch.id }}">
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Batch Number</label>
+                        <input
+                            class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                            type="text" name="batch_number" value="{{ batch.batch_number }}">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block font-label-bold text-label-bold text-on-surface">Expiry Date</label>
+                        <input type="date"
+                            class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                            name="expiry_date" value="{{ batch.expiry_date }}">
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-body-sm font-body-sm text-on-surface-variant">No batches yet — record stock to create
+                    the first batch.</p>
+                {% endfor %}
             </div>
         </div>
 

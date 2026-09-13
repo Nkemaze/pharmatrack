@@ -401,6 +401,7 @@ def get_product_list(search=None, pharmacy_id=None):
             params = (like_term, like_term)
     cur.execute(f"""
         SELECT p.id, p.pharmacy_id, p.name, p.category, p.dosage_form,
+               p.low_stock_threshold,
                ph.name AS pharmacy_name,
                COALESCE(SUM(sm.quantity), 0) AS current_stock,
                MIN(pb.expiry_date) AS nearest_expiry
@@ -415,7 +416,7 @@ def get_product_list(search=None, pharmacy_id=None):
     rows = cur.fetchall()
     conn.close()
 
-    low_stock_threshold = int(get_setting("low_stock_threshold", "100"))
+    low_stock_threshold = int(get_setting("low_stock_threshold", "10"))
     today = date.today()
     products = []
     for row in rows:
@@ -437,7 +438,8 @@ def get_product_list(search=None, pharmacy_id=None):
             "category": row["category"] or "—",
             "dosage_form": row["dosage_form"] or "—",
             "current_stock": row["current_stock"],
-            "is_low_stock": row["current_stock"] < low_stock_threshold,
+            "low_stock_threshold": row["low_stock_threshold"] or low_stock_threshold,
+            "is_low_stock": row["current_stock"] < (row["low_stock_threshold"] or low_stock_threshold),
             "expiry_status": expiry_status,
         })
     return products
@@ -633,7 +635,8 @@ def create_product(name, category, strength, dosage_form, barcode,
                     batch_number, expiry_date, initial_quantity,
                     performed_by_user_id=None, pharmacy_id=None,
                     price_per_unit=None, price_per_packet=None,
-                    packet_size=None, unit_label=None, image_url=None):
+                    packet_size=None, unit_label=None, image_url=None,
+                    low_stock_threshold=None):
     """
     Creates a product, its first batch, and the initial 'receipt' movement
     that gives it starting stock — all in one transaction, so you never end
@@ -657,12 +660,13 @@ def create_product(name, category, strength, dosage_form, barcode,
             """INSERT INTO product
                (id, pharmacy_id, name, category, strength, dosage_form, barcode,
                 requires_prescription, is_controlled, price_per_unit,
-                price_per_packet, packet_size, unit_label, image_url)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                price_per_packet, packet_size, unit_label, image_url,
+                low_stock_threshold)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (product_id, pharmacy_id, name, category, strength, dosage_form,
              barcode or None, 1 if requires_prescription else 0,
              1 if is_controlled else 0, price_per_unit, price_per_packet,
-             packet_size, unit_label, image_url)
+             packet_size, unit_label, image_url, low_stock_threshold)
         )
 
         batch_id = str(uuid.uuid4())
@@ -845,26 +849,42 @@ def get_product_id_for_batch_owned_by(batch_id, pharmacy_id):
     return row["product_id"] if row else None
 
 
-def get_loss_reports():
+def get_loss_reports(pharmacy_id=None):
     """
     Real loss history for the Loss Reports screen: joins loss_report back to
     the movement, batch, and product that generated it. Also returns summary
-    stats actually computable from real data (no fabricated numbers).
+    stats actually computable from real data (no fabricated numbers). If
+    pharmacy_id is given, results are scoped to that tenant.
     """
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT lr.id AS loss_report_id, lr.circumstances, lr.reported_to_authority_at,
-               lr.authority_reference,
-               sm.occurred_at, sm.quantity, sm.reference_number,
-               pb.batch_number,
-               p.name AS product_name, p.is_controlled
-        FROM loss_report lr
-        JOIN stock_movement sm ON sm.id = lr.stock_movement_id
-        JOIN product_batch pb ON pb.id = sm.product_batch_id
-        JOIN product p ON p.id = pb.product_id
-        ORDER BY sm.occurred_at DESC
-    """)
+    if pharmacy_id:
+        cur.execute("""
+            SELECT lr.id AS loss_report_id, lr.circumstances, lr.reported_to_authority_at,
+                   lr.authority_reference,
+                   sm.occurred_at, sm.quantity, sm.reference_number,
+                   pb.batch_number,
+                   p.name AS product_name, p.is_controlled
+            FROM loss_report lr
+            JOIN stock_movement sm ON sm.id = lr.stock_movement_id
+            JOIN product_batch pb ON pb.id = sm.product_batch_id
+            JOIN product p ON p.id = pb.product_id
+            WHERE p.pharmacy_id = ?
+            ORDER BY sm.occurred_at DESC
+        """, (pharmacy_id,))
+    else:
+        cur.execute("""
+            SELECT lr.id AS loss_report_id, lr.circumstances, lr.reported_to_authority_at,
+                   lr.authority_reference,
+                   sm.occurred_at, sm.quantity, sm.reference_number,
+                   pb.batch_number,
+                   p.name AS product_name, p.is_controlled
+            FROM loss_report lr
+            JOIN stock_movement sm ON sm.id = lr.stock_movement_id
+            JOIN product_batch pb ON pb.id = sm.product_batch_id
+            JOIN product p ON p.id = pb.product_id
+            ORDER BY sm.occurred_at DESC
+        """)
     rows = cur.fetchall()
     conn.close()
 
@@ -918,45 +938,55 @@ def mark_loss_reported(loss_report_id, authority_reference=None):
 LOW_STOCK_THRESHOLD = 100  # same threshold used for the red-highlight in product_list
 
 
-def get_dashboard_data():
+def get_dashboard_data(pharmacy_id=None):
     """
     Real numbers for the dashboard: counts for the stat cards, the actual
     low-stock products, actual expiring/expired batches, and the most
-    recent stock movements across all products.
+    recent stock movements across all products. If pharmacy_id is given,
+    results are scoped to that tenant (multi-tenant hosted mode).
     """
     conn = get_db_connection()
     cur = conn.cursor()
 
-    low_stock_threshold = int(get_setting("low_stock_threshold", "100"))
+    low_stock_threshold = int(get_setting("low_stock_threshold", "10"))
 
     # Total products
-    cur.execute("SELECT COUNT(*) AS c FROM product")
+    if pharmacy_id:
+        cur.execute("SELECT COUNT(*) AS c FROM product WHERE pharmacy_id = ?", (pharmacy_id,))
+    else:
+        cur.execute("SELECT COUNT(*) AS c FROM product")
     total_products = cur.fetchone()["c"]
 
     # Per-product current stock, to find low-stock ones
+    where_pharmacy = " WHERE p.pharmacy_id = ?" if pharmacy_id else ""
+    params_pharmacy = (pharmacy_id,) if pharmacy_id else ()
     cur.execute("""
-        SELECT p.id, p.name, COALESCE(SUM(sm.quantity), 0) AS current_stock
+        SELECT p.id, p.name, p.low_stock_threshold,
+               COALESCE(SUM(sm.quantity), 0) AS current_stock
         FROM product p
         LEFT JOIN product_batch pb ON pb.product_id = p.id
         LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
+        %s
         GROUP BY p.id
-    """)
+    """ % where_pharmacy, params_pharmacy)
     stock_rows = cur.fetchall()
     low_stock_items = [
         {"id": r["id"], "name": r["name"], "current_stock": r["current_stock"],
-         "threshold": low_stock_threshold}
-        for r in stock_rows if r["current_stock"] < low_stock_threshold
+         "threshold": r["low_stock_threshold"] or low_stock_threshold}
+        for r in stock_rows if r["current_stock"] < (r["low_stock_threshold"] or low_stock_threshold)
     ]
     low_stock_items.sort(key=lambda x: x["current_stock"])
 
     # Batches that are expired or expiring within 90 days
+    where_pharmacy_and = " AND p.pharmacy_id = ?" if pharmacy_id else ""
     cur.execute("""
         SELECT pb.batch_number, pb.expiry_date, p.name AS product_name
         FROM product_batch pb
         JOIN product p ON p.id = pb.product_id
         WHERE pb.expiry_date IS NOT NULL
+        %s
         ORDER BY pb.expiry_date ASC
-    """)
+    """ % where_pharmacy_and, params_pharmacy)
     batch_rows = cur.fetchall()
 
     today = date.today()
@@ -982,14 +1012,15 @@ def get_dashboard_data():
         FROM stock_movement sm
         JOIN product_batch pb ON pb.id = sm.product_batch_id
         JOIN product p ON p.id = pb.product_id
+        %s
         ORDER BY sm.occurred_at DESC
         LIMIT 5
-    """)
+    """ % where_pharmacy, params_pharmacy)
     recent_movements = [dict(r) for r in cur.fetchall()]
 
     conn.close()
 
-    unreported_losses_count = get_loss_reports()["unreported_count"]
+    unreported_losses_count = get_loss_reports(pharmacy_id=pharmacy_id)["unreported_count"]
 
     return {
         "total_products": total_products,
@@ -1005,7 +1036,8 @@ def get_dashboard_data():
 def update_product(product_id, name, category, strength, dosage_form, barcode,
                     requires_prescription, is_controlled,
                     price_per_unit=None, price_per_packet=None,
-                    packet_size=None, unit_label=None, image_url=None):
+                    packet_size=None, unit_label=None, image_url=None,
+                    low_stock_threshold=None):
     """Updates a product's own fields. Does NOT touch batches or stock -
     those only ever change through Record Movement, by design."""
     conn = get_db_connection()
@@ -1015,13 +1047,36 @@ def update_product(product_id, name, category, strength, dosage_form, barcode,
            SET name = ?, category = ?, strength = ?, dosage_form = ?, barcode = ?,
                requires_prescription = ?, is_controlled = ?,
                price_per_unit = ?, price_per_packet = ?,
-               packet_size = ?, unit_label = ?, image_url = ?
+               packet_size = ?, unit_label = ?, image_url = ?,
+               low_stock_threshold = ?
            WHERE id = ?""",
         (name, category, strength, dosage_form, barcode or None,
          1 if requires_prescription else 0, 1 if is_controlled else 0,
          price_per_unit, price_per_packet, packet_size, unit_label, image_url,
-         product_id)
+         low_stock_threshold, product_id)
     )
+    conn.commit()
+    conn.close()
+
+
+def update_batch(batch_id, batch_number=None, expiry_date=None):
+    """Updates a batch's mutable fields (batch_number, expiry_date). Only
+    fields that are not None are changed. Editing expiry is how a batch with
+    a wrong/outdated date is corrected; stock still only changes through
+    Record Movement."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    sets, values = [], []
+    if batch_number is not None:
+        sets.append("batch_number = ?")
+        values.append(batch_number)
+    if expiry_date is not None:
+        sets.append("expiry_date = ?")
+        values.append(expiry_date)
+    if not sets:
+        return
+    values.append(batch_id)
+    cur.execute(f"UPDATE product_batch SET {', '.join(sets)} WHERE id = ?", values)
     conn.commit()
     conn.close()
 
@@ -1047,11 +1102,12 @@ def set_setting(key, value):
     conn.close()
 
 
-def get_alert_count():
+def get_alert_count(pharmacy_id=None):
     """Lightweight combined count for the header notification badge -
     reuses the same real numbers as the dashboard (low stock + expiring +
-    unreported losses), without building the full detail lists."""
-    data = get_dashboard_data()
+    unreported losses), without building the full detail lists. Scoped to a
+    pharmacy when one is given."""
+    data = get_dashboard_data(pharmacy_id=pharmacy_id)
     return data["low_stock_count"] + data["expiring_soon_count"] + data["unreported_losses_count"]
 
 

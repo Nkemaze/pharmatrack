@@ -1,7 +1,10 @@
+from dotenv import load_dotenv
+
+load_dotenv()  # local .env (gitignored): DATABASE_URL, SECRET_KEY, JWT_SECRET_KEY...
 from flask import Flask, render_template, request, redirect, url_for, jsonify, abort, session, Response, send_from_directory
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
-from datetime import timedelta
+from datetime import date, timedelta
 import os
 import csv
 import io
@@ -13,7 +16,8 @@ from database.queries import (
     get_product_list, get_product_detail,
     create_product, get_product_by_barcode,
     get_products_for_dropdown, get_batches_for_product,
-    create_movement, get_product_id_for_batch,
+    create_movement, get_product_id_for_batch, get_product_id_for_batch_owned_by,
+    update_batch,
     get_loss_reports, mark_loss_reported,
     get_dashboard_data,
     update_product, get_setting, set_setting,
@@ -182,7 +186,9 @@ def inject_globals():
     pending_pharmacy_count = 0
     if 'user_id' in session:
         try:
-            alert_count = get_alert_count()
+            user = get_user_by_id(session.get('user_id'))
+            pharmacy_id = user.get('pharmacy_id') if user else None
+            alert_count = get_alert_count(pharmacy_id=pharmacy_id)
         except Exception:
             app.logger.exception('Failed to load alert count for template')
     if is_admin:
@@ -433,6 +439,85 @@ def admin_console():
                            error=error)
 
 
+@app.route('/settings/profile', methods=['GET', 'POST'])
+@pharmacist_required
+def pharmacy_profile():
+    """Pharmacy Settings: the logged-in pharmacist edits their own pharmacy
+    profile (name, license, contact, hours, location) and can change their
+    account password. Mirrors the Flutter app's PharmacyProfilePage."""
+    user = get_user_by_id(session.get('user_id'))
+    if user is None or not user.get('pharmacy_id'):
+        return redirect(url_for('dashboard'))
+    pharmacy = get_pharmacy(user['pharmacy_id']) or {}
+
+    error = None
+    if request.method == 'POST':
+        pharmacy_name = request.form.get('pharmacy_name', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        new_password = request.form.get('new_password', '')
+
+        if not pharmacy_name or not address:
+            error = "Pharmacy name and street address are required."
+        elif '@' not in email:
+            error = "Enter a valid contact email address."
+        else:
+            # Password change is optional; only when the new-password box is filled in.
+            if new_password:
+                current_password = request.form.get('current_password', '')
+                if not verify_password(user['id'], current_password):
+                    error = "Current password is incorrect."
+                elif len(new_password) < 8:
+                    error = "New password must be at least 8 characters."
+                elif new_password != request.form.get('confirm_password', ''):
+                    error = "New passwords do not match."
+
+        if error is None:
+            try:
+                opening_hours = {
+                    'weekdayOpen': request.form.get('hours_weekday_open') or None,
+                    'weekdayClose': request.form.get('hours_weekday_close') or None,
+                    'weekendOpen': request.form.get('hours_weekend_open') or None,
+                    'weekendClose': request.form.get('hours_weekend_close') or None,
+                }
+                update_pharmacy(
+                    user['pharmacy_id'],
+                    name=pharmacy_name,
+                    address=address,
+                    license_number=request.form.get('license_number', '').strip() or None,
+                    email=email,
+                    city=request.form.get('city', '').strip() or None,
+                    state=request.form.get('state', '').strip() or None,
+                    zip_code=request.form.get('zip_code', '').strip() or None,
+                    phone=request.form.get('phone', '').strip() or None,
+                    emergency_phone=request.form.get('emergency_phone', '').strip() or None,
+                    emergency_desc=request.form.get('emergency_desc', '').strip() or None,
+                    latitude=request.form.get('latitude', '').strip() or None,
+                    longitude=request.form.get('longitude', '').strip() or None,
+                    opening_hours=json.dumps(opening_hours),
+                )
+                if new_password:
+                    change_password(user['id'], new_password)
+                return redirect(url_for('pharmacy_profile', updated=1))
+            except Exception:
+                app.logger.exception('Pharmacy profile update failed')
+                error = 'We could not save your profile right now. Please try again in a moment.'
+
+    pharmacy = get_pharmacy(user['pharmacy_id']) or pharmacy
+    parsed_hours = _parse_hours(pharmacy.get('opening_hours'))
+    return render_template(
+        'pharmacy_profile.html',
+        active_page='settings',
+        error=error,
+        updated=request.args.get('updated') == '1',
+        pharmacy=pharmacy,
+        hours_weekday_open=(parsed_hours.get('weekdayOpen') or '08:00'),
+        hours_weekday_close=(parsed_hours.get('weekdayClose') or '20:00'),
+        hours_weekend_open=(parsed_hours.get('weekendOpen') or '09:00'),
+        hours_weekend_close=(parsed_hours.get('weekendClose') or '15:00'),
+    )
+
+
 @app.route('/profile-setup', methods=['GET', 'POST'])
 @login_required
 def profile_setup():
@@ -631,7 +716,9 @@ def dashboard():
             return redirect(url_for('profile_setup'))
     if session.get('role') == 'admin':
         return _admin_dashboard()
-    data = get_dashboard_data()
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
+    data = get_dashboard_data(pharmacy_id=pharmacy_id)
     return render_template('dashboard.html', active_page='dashboard', **data)
 
 
@@ -670,8 +757,17 @@ def _admin_dashboard():
 @pharmacist_required
 def product_list():
     search = request.args.get('q', '').strip()
-    products = get_product_list(search=search if search else None)
-    return render_template('product_list.html', active_page='inventory', products=products, search_query=search)
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
+    products = get_product_list(search=search if search else None, pharmacy_id=pharmacy_id)
+    expiring_soon_count = sum(1 for p in products if p["expiry_status"] in ("Expired", "Expiring Soon"))
+    low_stock_count = sum(1 for p in products if p["is_low_stock"])
+    expiring_products = [p for p in products if p["expiry_status"] in ("Expired", "Expiring Soon")]
+    low_stock_products = [p for p in products if p["is_low_stock"]]
+    return render_template(
+        'product_list.html', active_page='inventory', products=products, search_query=search,
+        expiring_soon_count=expiring_soon_count, low_stock_count=low_stock_count,
+        expiring_products=expiring_products, low_stock_products=low_stock_products)
 
 @app.route('/products/<product_id>')
 @pharmacist_required
@@ -681,10 +777,45 @@ def product_details(product_id):
         abort(404)
     return render_template('product_details.html', active_page='inventory', product=product)
 
+
+def _parse_low_stock_threshold(raw):
+    """Blank -> None (use the global setting). A positive whole number is
+    returned as int; anything else (bad value) returns the string 'invalid'."""
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 'invalid'
+    if value < 1:
+        return 'invalid'
+    return value
+
+
 @app.route('/products/new', methods=['GET', 'POST'])
 @pharmacist_required
 def add_product():
     if request.method == 'POST':
+        user = get_user_by_id(session.get('user_id'))
+        pharmacy_id = user.get('pharmacy_id') if user else None
+        required_label = {
+            'name': 'Product Name', 'category': 'Category', 'strength': 'Strength',
+            'dosage_form': 'Dosage Form', 'batch_number': 'Batch Number',
+            'expiry_date': 'Expiry Date',
+        }
+        missing = [label for field, label in required_label.items()
+                   if not (request.form.get(field) or '').strip()]
+        if missing:
+            return render_template(
+                'add_product.html', active_page='inventory', error="Please fill in: " + ", ".join(missing),
+                form_data=request.form), 400
+        low_stock_threshold = _parse_low_stock_threshold(request.form.get('low_stock_threshold'))
+        if low_stock_threshold == 'invalid':
+            return render_template(
+                'add_product.html', active_page='inventory',
+                error="Low stock alert amount must be a whole number of 1 or more.",
+                form_data=request.form), 400
         product_id = create_product(
             name=request.form['name'],
             category=request.form.get('category'),
@@ -701,6 +832,8 @@ def add_product():
             packet_size=request.form.get('packet_size') or None,
             unit_label=request.form.get('unit_label') or None,
             image_url=request.form.get('image_url') or None,
+            low_stock_threshold=low_stock_threshold,
+            pharmacy_id=pharmacy_id,
         )
         return redirect(url_for('product_details', product_id=product_id))
 
@@ -716,36 +849,91 @@ def barcode_lookup():
 @app.route('/api/products/<product_id>/batches')
 @pharmacist_required
 def api_product_batches(product_id):
-    return jsonify(get_batches_for_product(product_id))
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
+    return jsonify(get_batches_for_product(product_id, pharmacy_id=pharmacy_id))
 
 @app.route('/movements/new', methods=['GET', 'POST'])
 @pharmacist_required
 def record_movement():
+    error = None
+    form_data = {}
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
     if request.method == 'POST':
         batch_id = request.form['batch_id']
-        create_movement(
-            product_batch_id=batch_id,
-            movement_type=request.form['movement_type'],
-            quantity=request.form['quantity'],
-            adjustment_direction=request.form.get('adjustment_direction'),
-            counterparty_name=request.form.get('counterparty_name') or None,
-            counterparty_address=request.form.get('counterparty_address') or None,
-            reference_number=request.form.get('reference_number') or None,
-            prescription_number=request.form.get('prescription_number') or None,
-            reason=request.form.get('reason') or None,
-        )
-        product_id = get_product_id_for_batch(batch_id)
+        form_data = request.form
+        try:
+            create_movement(
+                product_batch_id=batch_id,
+                movement_type=request.form['movement_type'],
+                quantity=request.form['quantity'],
+                adjustment_direction=request.form.get('adjustment_direction'),
+                counterparty_name=request.form.get('counterparty_name') or None,
+                counterparty_address=request.form.get('counterparty_address') or None,
+                reference_number=request.form.get('reference_number') or None,
+                prescription_number=request.form.get('prescription_number') or None,
+                reason=request.form.get('reason') or None,
+            )
+        except ValueError as exc:
+            products = get_products_for_dropdown(pharmacy_id=pharmacy_id)
+            return render_template(
+                'record_movement.html', active_page='movements', products=products,
+                error=str(exc), form_data=form_data), 400
+        product_id = get_product_id_for_batch_owned_by(batch_id, pharmacy_id)
+        if product_id is None:
+            products = get_products_for_dropdown(pharmacy_id=pharmacy_id)
+            return render_template(
+                'record_movement.html', active_page='movements', products=products,
+                error="This batch does not belong to your pharmacy.", form_data=form_data), 403
         return redirect(url_for('product_details', product_id=product_id))
 
-    products = get_products_for_dropdown()
-    return render_template('record_movement.html', active_page='movements', products=products)
+    products = get_products_for_dropdown(pharmacy_id=pharmacy_id)
+    return render_template('record_movement.html', active_page='movements', products=products, error=error, form_data=form_data)
 
 @app.route('/products/<product_id>/edit', methods=['GET', 'POST'])
 @pharmacist_required
 def edit_product(product_id):
     # Deliberately NOT admin-only: editing product info is everyday
     # pharmacist work, same as adding products or recording movements.
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
+    product = get_product_detail(product_id, pharmacy_id=pharmacy_id)
+    if product is None:
+        abort(404)
+    error = None
     if request.method == 'POST':
+        batch_ids = request.form.getlist('batch_id')
+        batch_nums = request.form.getlist('batch_number')
+        expiries = request.form.getlist('expiry_date')
+        # Validate every expiry date first so a bad value never causes a
+        # partial save (product updated but batches not, or vice versa).
+        for bid, bnum, exp in zip(batch_ids, batch_nums, expiries):
+            if exp:
+                try:
+                    date.fromisoformat(exp)
+                except ValueError:
+                    error = f"Batch \"{bnum or bid}\" has an invalid expiry date (use YYYY-MM-DD)."
+                    break
+        low_stock_threshold = _parse_low_stock_threshold(request.form.get('low_stock_threshold'))
+        if low_stock_threshold == 'invalid':
+            error = "Low stock alert amount must be a whole number of 1 or more."
+        if error:
+            for key in ("name", "category", "strength", "dosage_form", "barcode",
+                        "requires_prescription", "is_controlled", "price_per_unit",
+                        "price_per_packet", "packet_size", "unit_label", "image_url",
+                        "low_stock_threshold"):
+                product[key] = request.form.get(key, product.get(key))
+            product["requires_prescription"] = 1 if request.form.get('requires_prescription') == 'on' else 0
+            product["is_controlled"] = 1 if request.form.get('is_controlled') == 'on' else 0
+            product["batches"] = [
+                {"id": bid, "batch_number": bnum or "", "expiry_date": exp or "",
+                 "status": "Healthy", "quantity_remaining": 0}
+                for bid, bnum, exp in zip(batch_ids, batch_nums, expiries)
+            ]
+            return render_template(
+                'edit_product.html', active_page='inventory', product=product,
+                error=error), 400
         update_product(
             product_id=product_id,
             name=request.form['name'],
@@ -760,13 +948,15 @@ def edit_product(product_id):
             packet_size=request.form.get('packet_size') or None,
             unit_label=request.form.get('unit_label') or None,
             image_url=request.form.get('image_url') or None,
+            low_stock_threshold=low_stock_threshold,
         )
+        for bid, bnum, exp in zip(batch_ids, batch_nums, expiries):
+            if bid:
+                update_batch(bid, batch_number=bnum or None, expiry_date=exp or None)
         return redirect(url_for('product_details', product_id=product_id))
 
-    product = get_product_detail(product_id)
-    if product is None:
-        abort(404)
-    return render_template('edit_product.html', active_page='inventory', product=product)
+    return render_template('edit_product.html', active_page='inventory',
+                           product=product, error=error)
 
 @app.route('/preferences')
 @login_required
@@ -811,7 +1001,7 @@ def settings():
             opening_hours=json.dumps(opening_hours),
             status=request.form.get('pharmacy_status') or 'active',
         )
-        set_setting('low_stock_threshold', request.form.get('low_stock_threshold', '100'))
+        set_setting('low_stock_threshold', request.form.get('low_stock_threshold', '10'))
         return redirect(url_for('settings'))
 
     parsed_hours = _parse_hours(pharmacy.get('opening_hours'))
@@ -831,7 +1021,7 @@ def settings():
         hours_weekday_close=parsed_hours.get('weekdayClose') or '',
         hours_weekend_open=parsed_hours.get('weekendOpen') or '',
         hours_weekend_close=parsed_hours.get('weekendClose') or '',
-        low_stock_threshold=get_setting('low_stock_threshold', '100'),
+        low_stock_threshold=get_setting('low_stock_threshold', '10'),
         total_products=len(get_product_list(pharmacy_id=pharmacy.get('id'))),
     )
 
@@ -1027,20 +1217,30 @@ def mark_reported(loss_report_id):
     return redirect(url_for('loss_reports'))
 
 def start_flask():
-    app.run(port=5000, debug=False, use_reloader=False)
+    app.run(port=5000, debug=False, use_reloader=True)
+
+def _open_desktop_app(app_url):
+    try:
+        import webview
+        webview.create_window('PharmaTrack', app_url)
+        webview.start()
+    except Exception:
+        print('pywebview has no GTK or Qt backend; opening PharmaTrack in your browser.')
+        webbrowser.open(app_url)
+        threading.Event().wait()
 
 if __name__ == '__main__':
     import threading
     import webbrowser
 
-    threading.Thread(target=start_flask, daemon=True).start()
     app_url = 'http://127.0.0.1:5000'
 
-    try:
-        import webview
-        webview.create_window('PharmaTrack', app_url)
-        webview.start()
-    except webview.errors.WebViewException:
-        print('pywebview has no GTK or Qt backend; opening PharmaTrack in your browser.')
-        webbrowser.open(app_url)
-        threading.Event().wait()
+    # The reloader re-executes this file in a child process (marked by
+    # WERKZEUG_RUN_MAIN) to serve the app. Open the window/browser only in the
+    # original process so a file save doesn't spawn duplicate windows. Flask
+    # itself must run in the main thread, because the reloader installs signal
+    # handlers that fail from a background thread.
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        threading.Thread(target=_open_desktop_app, args=(app_url,), daemon=True).start()
+
+    start_flask()

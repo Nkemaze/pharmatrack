@@ -74,26 +74,51 @@
     </div>
 </div>
 
-<!-- Warning Banner -->
-<div
-    class="mb-6 bg-error-container text-on-error-container px-4 py-3 rounded-lg border-l-4 border-error flex items-center justify-between">
-    <div class="flex items-center gap-3">
-        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">report</span>
-        <p class="font-label-bold text-label-bold">CRITICAL ALERT: 14 items have reached expiration date and 3 are in
-            critical low stock.</p>
+{% if expiring_soon_count > 0 or low_stock_count > 0 %}
+<!-- Warning Banner (only rendered when real issues exist) -->
+<div class="mb-6 bg-error-container text-on-error-container rounded-lg border-l-4 border-error">
+    <div class="px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">report</span>
+            <p class="font-label-bold text-label-bold">CRITICAL ALERT:
+                {%- if expiring_soon_count > 0 %} {{ expiring_soon_count }} item{{ 's' if
+                expiring_soon_count != 1 else '' }} {{ 'have' if expiring_soon_count != 1 else 'has' }} reached
+                expiration date{{ 's' if expiring_soon_count != 1 else '' }}{% endif -%}
+                {%- if expiring_soon_count > 0 and low_stock_count > 0 %} and{% endif -%}
+                {%- if low_stock_count > 0 %} {{ low_stock_count }}
+                {{ 'are' if low_stock_count != 1 else 'is' }} in critical low stock{% endif -%}
+                .</p>
+        </div>
+        <a href="#inventory-table"
+            class="bg-error text-on-error px-4 py-1 rounded font-label-bold text-[11px] uppercase tracking-wide">View
+            Affected</a>
     </div>
-    <button class="bg-error text-on-error px-4 py-1 rounded font-label-bold text-[11px] uppercase tracking-wide">View
-        Affected</button>
+    {% if expiring_products or low_stock_products %}
+    <div class="px-4 pb-3 border-t border-error/30 pt-3">
+        {% if expiring_products %}
+        <p class="font-label-bold text-label-bold text-[11px] uppercase tracking-wide mb-1">Expired / Expiring Soon</p>
+        <ul class="font-body-sm text-body-sm mb-2 space-y-0.5">
+            {% for p in expiring_products %}
+            <li><a href="{{ url_for('product_details', product_id=p.id) }}"
+                    class="text-on-error-container underline underline-offset-2">{{ p.name }}</a> — {{ p.expiry_status }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% if low_stock_products %}
+        <p class="font-label-bold text-label-bold text-[11px] uppercase tracking-wide mb-1">Critical Low Stock</p>
+        <ul class="font-body-sm text-body-sm space-y-0.5">
+            {% for p in low_stock_products %}
+            <li><a href="{{ url_for('product_details', product_id=p.id) }}"
+                    class="text-on-error-container underline underline-offset-2">{{ p.name }}</a> — {{ p.current_stock }} unit{{ 's' if p.current_stock != 1 else '' }} in stock</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
+{% endif %}
 
-<!--
-  Mock rows below (Stitch placeholder data). Once your Flask route passes
-  real products, replace <tbody> with:
-  {% for product in products %}
-  <tr> ... {{ product.name }} ... </tr>
-  {% endfor %}
--->
-<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+<div id="inventory-table" class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
     <div class="overflow-x-auto table-container">
         <table class="w-full text-left border-collapse">
             <thead class="sticky top-0 bg-surface-container-low border-b border-outline-variant z-10">
@@ -164,29 +189,14 @@
             </tbody>
         </table>
     </div>
-    <!-- Pagination / Footer -->
+    <!-- Footer -->
     <div class="bg-surface-container-low border-t border-outline-variant px-6 py-3 flex justify-between items-center">
-        <span class="text-body-sm font-body-sm text-on-surface-variant">Showing {{ products|length }} of {{
-            products|length }} products</span>
-        <div class="flex items-center gap-2">
-            <button class="p-1 hover:bg-surface-container-high rounded disabled:opacity-30" disabled="">
-                <span class="material-symbols-outlined">chevron_left</span>
-            </button>
-            <div class="flex gap-1">
-                <button
-                    class="w-8 h-8 flex items-center justify-center rounded bg-secondary text-on-secondary font-label-bold text-label-bold">1</button>
-                <button
-                    class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high font-label-bold text-label-bold">2</button>
-                <button
-                    class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high font-label-bold text-label-bold">3</button>
-                <span class="px-1 self-end">...</span>
-                <button
-                    class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high font-label-bold text-label-bold">64</button>
-            </div>
-            <button class="p-1 hover:bg-surface-container-high rounded">
-                <span class="material-symbols-outlined">chevron_right</span>
-            </button>
-        </div>
+        <span class="text-body-sm font-body-sm text-on-surface-variant">Showing all {{ products|length }}
+            product{{ 's' if products|length != 1 else '' }}</span>
+        {% if products|length > 0 %}
+        <a href="{{ url_for('add_product') }}"
+            class="text-secondary font-label-bold text-label-bold hover:underline">Add another product</a>
+        {% endif %}
     </div>
 </div>
 

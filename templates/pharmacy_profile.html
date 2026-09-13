@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Pharmacy Settings - PharmaTrack{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-secondary-container text-on-secondary-container grid place-items-center">
+            <span class="material-symbols-outlined">settings</span>
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-on-surface">Pharmacy Settings</h1>
+            <p class="text-body-sm text-on-surface-variant">Update your pharmacy's public profile, opening hours and
+                location.</p>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="flex items-start gap-3 px-4 py-3 rounded-xl border border-error/40 bg-error-container/30 text-error">
+        <span class="material-symbols-outlined text-[20px] mt-0.5">error</span>
+        <p class="text-body-md font-medium">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    {% if updated %}
+    <div class="flex items-start gap-3 px-4 py-3 rounded-xl border border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-300">
+        <span class="material-symbols-outlined text-[20px] mt-0.5">check_circle</span>
+        <p class="text-body-md font-medium">Profile saved successfully. Your changes are now live.</p>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('pharmacy_profile') }}" data-submit-spinner
+        class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Left column -->
+        <div class="lg:col-span-7 space-y-6">
+            <!-- Basic Information -->
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <span class="material-symbols-outlined text-primary">store</span>
+                    <h2 class="text-xl font-semibold text-on-surface">Basic Information</h2>
+                    <span class="ml-auto text-[10px] font-bold tracking-wider bg-secondary-container/60 text-on-secondary-container px-2 py-1 rounded-full">Public</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2">
+                        <label for="pf-name" class="auth-label">Pharmacy name *</label>
+                        <input id="pf-name" name="pharmacy_name" value="{{ pharmacy.name or '' }}" required
+                            class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                    <div>
+                        <label for="pf-license" class="auth-label">License number</label>
+                        <input id="pf-license" name="license_number" value="{{ pharmacy.license_number or '' }}"
+                            placeholder="e.g. PH-2024-00127"
+                            class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                    <div>
+                        <label for="pf-email" class="auth-label">Contact email *</label>
+                        <input id="pf-email" name="email" type="email" value="{{ pharmacy.email or '' }}" required
+                            class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="pf-address" class="auth-label">Street address *</label>
+                        <input id="pf-address" name="address" value="{{ pharmacy.address or '' }}" required
+                            placeholder="e.g. 12 Rue du Marché, Mvan, Yaoundé"
+                            class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                    <div>
+                        <label for="pf-city" class="auth-label">City</label>
+                        <input id="pf-city" name="city" value="{{ pharmacy.city or '' }}" placeholder="e.g. Yaoundé"
+                            class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="pf-state" class="auth-label">State/Region</label>
+                            <input id="pf-state" name="state" value="{{ pharmacy.state or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="pf-zip" class="auth-label">ZIP / Postal code</label>
+                            <input id="pf-zip" name="zip_code" value="{{ pharmacy.zip_code or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="pf-phone" class="auth-label">Contact phone</label>
+                        <input id="pf-phone" name="phone" type="tel" value="{{ pharmacy.phone or '' }}"
+                            class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <!-- Store Hours -->
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-5">
+                        <span class="material-symbols-outlined text-primary">schedule</span>
+                        <h2 class="text-xl font-semibold text-on-surface">Store Hours</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant w-20">Weekdays</span>
+                            <input type="time" name="hours_weekday_open" value="{{ hours_weekday_open }}"
+                                class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                            <span class="text-sm text-on-surface-variant">to</span>
+                            <input type="time" name="hours_weekday_close" value="{{ hours_weekday_close }}"
+                                class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant w-20">Weekends</span>
+                            <input type="time" name="hours_weekend_open" value="{{ hours_weekend_open }}"
+                                class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                            <span class="text-sm text-on-surface-variant">to</span>
+                            <input type="time" name="hours_weekend_close" value="{{ hours_weekend_close }}"
+                                class="flex-1 min-w-[96px] px-3 py-2 border border-outline-variant rounded-lg text-body-md text-on-surface bg-surface-container-low focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emergency Contact -->
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-5">
+                        <span class="material-symbols-outlined text-primary">local_hospital</span>
+                        <h2 class="text-xl font-semibold text-on-surface">Emergency Contact</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="pf-emergency-phone" class="auth-label">Phone</label>
+                            <input id="pf-emergency-phone" name="emergency_phone" type="tel"
+                                value="{{ pharmacy.emergency_phone or '' }}"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                        <div>
+                            <label for="pf-emergency-desc" class="auth-label">Description</label>
+                            <input id="pf-emergency-desc" name="emergency_desc"
+                                value="{{ pharmacy.emergency_desc or '' }}" placeholder="e.g. Direct line to duty pharmacist"
+                                class="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="lg:col-span-5 space-y-6 lg:sticky lg:top-20">
+            <!-- Pharmacy Location (map picker like the Flutter app) -->
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-primary">location_on</span>
+                    <h2 class="text-xl font-semibold text-on-surface">Pharmacy Location</h2>
+                    <span class="ml-auto text-[11px] font-semibold tracking-wide bg-secondary-container/60 text-on-secondary-container px-2.5 py-1 rounded-full">Tap the map to drop the pin</span>
+                </div>
+
+                <!-- Search -->
+                <div class="flex gap-2 mb-3">
+                    <div class="relative flex-1">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">search</span>
+                        <input id="loc-search" type="text" autocomplete="off"
+                            placeholder="Search for a place or address..." value="{{ pharmacy.address or '' }}"
+                            class="w-full pl-[44px] pr-3 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all" />
+                    </div>
+                    <button type="button" id="loc-search-btn"
+                        class="shrink-0 h-[46px] px-4 bg-primary text-on-primary rounded-lg grid place-items-center hover:opacity-90 active:scale-[.98] transition">
+                        <span class="material-symbols-outlined text-[20px]">search</span>
+                    </button>
+                </div>
+                <p id="loc-search-error" class="hidden text-xs text-error mb-2"></p>
+
+                <!-- Map -->
+                <div id="loc-map-wrap" class="relative rounded-xl overflow-hidden border border-outline-variant">
+                    <div id="loc-map" class="h-[300px] w-full z-0"></div>
+
+                    <!-- Instruction chip -->
+                    <div
+                        class="absolute top-3 left-3 z-[500] flex items-center gap-3 px-4 py-3 rounded-xl bg-white/90 dark:bg-black/60 backdrop-blur border border-outline-variant shadow-md">
+                        <span class="material-symbols-outlined text-primary text-[20px]">location_on</span>
+                        <div>
+                            <p class="text-[13px] font-bold text-on-surface leading-tight">Set Pharmacy Location</p>
+                            <p class="text-xs text-on-surface-variant leading-tight">Click on the map to place your pharmacy.</p>
+                        </div>
+                    </div>
+
+                    <!-- Zoom + locate -->
+                    <div class="absolute right-3 bottom-[52px] z-[500] flex flex-col gap-1">
+                        <button type="button" id="loc-zoom-in"
+                            class="w-10 h-10 grid place-items-center bg-white dark:bg-neutral-800 border border-outline-variant rounded-lg text-primary shadow hover:bg-surface-container-low transition">
+                            <span class="material-symbols-outlined text-[22px]">add</span>
+                        </button>
+                        <button type="button" id="loc-zoom-out"
+                            class="w-10 h-10 grid place-items-center bg-white dark:bg-neutral-800 border border-outline-variant rounded-lg text-primary shadow hover:bg-surface-container-low transition">
+                            <span class="material-symbols-outlined text-[22px]">remove</span>
+                        </button>
+                        <button type="button" id="loc-locate" title="Use my current location"
+                            class="w-10 h-10 grid place-items-center bg-white dark:bg-neutral-800 border border-outline-variant rounded-lg text-primary shadow hover:bg-surface-container-low transition">
+                            <span class="material-symbols-outlined text-[22px]">my_location</span>
+                        </button>
+                    </div>
+                </div>
+
+                <input type="hidden" id="loc-lat" name="latitude" value="{{ pharmacy.latitude or '' }}">
+                <input type="hidden" id="loc-lng" name="longitude" value="{{ pharmacy.longitude or '' }}">
+
+                <!-- Selected location bar -->
+                <div id="loc-bar" class="hidden mt-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low">
+                    <div>
+                        <p class="text-[11px] font-bold tracking-wider text-on-surface-variant mb-1">Selected coordinates</p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant font-data-mono text-primary">
+                                <span class="material-symbols-outlined text-[14px]">explore</span> <span id="loc-lat-badge">&mdash;</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant font-data-mono text-primary">
+                                <span class="material-symbols-outlined text-[14px]">explore</span> <span id="loc-lng-badge">&mdash;</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="min-w-[180px] flex-1 max-w-[220px]">
+                        <p class="text-[11px] font-bold tracking-wider text-on-surface-variant mb-1">Precise address</p>
+                        <p id="loc-address" class="text-[13px] font-medium text-on-surface truncate">&mdash;</p>
+                    </div>
+                    <button type="button" id="loc-confirm"
+                        class="inline-flex items-center gap-1.5 px-4 h-10 border border-secondary text-secondary rounded-lg text-body-md font-semibold hover:bg-secondary/10 active:scale-[.98] transition">
+                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                        Confirm Location
+                    </button>
+                </div>
+
+                <p class="text-xs text-on-surface-variant mt-3">Used for delivery routing in the customer app.</p>
+            </div>
+
+            <!-- Change Password -->
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="material-symbols-outlined text-primary">lock</span>
+                    <h2 class="text-xl font-semibold text-on-surface">Change Password</h2>
+                    <span class="ml-auto text-[10px] font-bold tracking-wider bg-surface-variant/60 text-on-surface-variant px-2 py-1 rounded-full">Optional</span>
+                </div>
+                <p class="text-body-sm text-on-surface-variant mb-5">Leave the fields below empty to keep your current
+                    password.</p>
+                <div class="space-y-4">
+                    <div>
+                        <label for="pf-current" class="auth-label">Current password</label>
+                        <div class="relative">
+                            <input id="pf-current" data-pw-toggle name="current_password"
+                                class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="password" autocomplete="current-password">
+                            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                            <button type="button" data-pw-btn aria-label="Show password"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                <span class="material-symbols-outlined text-[20px]">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="pf-new" class="auth-label">New password</label>
+                        <div class="relative">
+                            <input id="pf-new" data-pw-toggle name="new_password" minlength="8"
+                                class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="password" autocomplete="new-password" placeholder="At least 8 characters">
+                            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">key</span>
+                            <button type="button" data-pw-btn aria-label="Show password"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                <span class="material-symbols-outlined text-[20px]">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="pf-confirm" class="auth-label">Confirm new password</label>
+                        <div class="relative">
+                            <input id="pf-confirm" data-pw-toggle name="confirm_password" minlength="8"
+                                class="w-full pl-[44px] pr-[48px] py-3 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-[3px] focus:ring-secondary/15 transition-all"
+                                type="password" autocomplete="new-password" placeholder="Repeat your password">
+                            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">lock</span>
+                            <button type="button" data-pw-btn aria-label="Show password"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition">
+                                <span class="material-symbols-outlined text-[20px]">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sticky save bar -->
+            <div class="flex items-center justify-between gap-4 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 shadow-sm">
+                <p class="text-xs text-on-surface-variant">Fields marked * are required.</p>
+                <button type="submit" data-submit-spinner
+                    class="inline-flex items-center gap-2 px-6 h-12 bg-primary text-on-primary rounded-xl text-body-md font-semibold hover:opacity-90 active:scale-[.98] transition">
+                    <span class="material-symbols-outlined text-[20px]">save</span>
+                    <span data-spinner-label>Save Profile</span>
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    (function () {
+        var pharmacyLat = parseFloat({{ pharmacy.latitude | default('', true) | tojson }} || '');
+        pharmacyLat = isNaN(pharmacyLat) ? null : pharmacyLat;
+        var pharmacyLng = parseFloat({{ pharmacy.longitude | default('', true) | tojson }} || '');
+        pharmacyLng = isNaN(pharmacyLng) ? null : pharmacyLng;
+
+        var isDark = document.documentElement.classList.contains('dark');
+        var tiles = isDark
+            ? L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd', maxZoom: 20
+            })
+            : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+            });
+
+        var pinIcon = L.divIcon({
+            className: '',
+            iconSize: [34, 44],
+            iconAnchor: [17, 40],
+            html: '<div style="position:relative;width:34px;height:44px;">'
+                + '<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);'
+                + 'width:32px;height:32px;border-radius:50%;background:var(--color-primary);'
+                + 'color:var(--color-on-primary);display:flex;align-items:center;justify-content:center;'
+                + 'box-shadow:0 2px 6px rgba(0,0,0,.28);">'
+                + '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">'
+                + '<rect x="10.2" y="4" width="3.6" height="16" rx="1.2" fill="#fff"/>'
+                + '<rect x="4" y="10.2" width="16" height="3.6" rx="1.2" fill="#fff"/>'
+                + '</svg></div>'
+                + '<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);'
+                + 'width:2px;height:12px;background:var(--color-primary);"></div></div>'
+        });
+
+        var center = (pharmacyLat !== null && pharmacyLng !== null)
+            ? [pharmacyLat, pharmacyLng] : [3.8480, 11.5021];
+
+        var map = L.map('loc-map', { zoomControl: false }).setView(center, pharmacyLat !== null ? 15 : 13);
+        tiles.addTo(map);
+
+        var marker = L.marker(center, { icon: pinIcon, zIndexOffset: 500 }).addTo(map);
+
+        var latInput = document.getElementById('loc-lat');
+        var lngInput = document.getElementById('loc-lng');
+        var latBadge = document.getElementById('loc-lat-badge');
+        var lngBadge = document.getElementById('loc-lng-badge');
+        var addrEl = document.getElementById('loc-address');
+        var bar = document.getElementById('loc-bar');
+        var searchInput = document.getElementById('loc-search');
+        var searchBtn = document.getElementById('loc-search-btn');
+        var searchError = document.getElementById('loc-search-error');
+        var confirmBtn = document.getElementById('loc-confirm');
+        var wrap = document.getElementById('loc-map-wrap');
+        var selected = null;
+
+        function showError(msg) {
+            searchError.textContent = msg;
+            searchError.classList.remove('hidden');
+        }
+
+        function updateBar(ll) {
+            bar.classList.remove('hidden');
+            latBadge.textContent = ll.lat.toFixed(4);
+            lngBadge.textContent = ll.lng.toFixed(4);
+            addrEl.textContent = 'Looking up address\u2026';
+            confirmBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span> Confirm Location';
+            confirmBtn.classList.remove('bg-primary', 'text-on-primary', 'border-primary');
+            wrap.classList.remove('ring-2', 'ring-secondary/40');
+
+            fetch('https://nominatim.openstreetmap.org/reverse?lat=' + ll.lat + '&lon=' + ll.lng + '&format=jsonv2', {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && (d.display_name || d.address)) {
+                        addrEl.textContent = d.display_name ||
+                            [d.address.road, d.address.suburb, d.address.city].filter(Boolean).join(', ');
+                    } else {
+                        addrEl.textContent = ll.lat.toFixed(4) + ', ' + ll.lng.toFixed(4);
+                    }
+                })
+                .catch(function () {
+                    addrEl.textContent = ll.lat.toFixed(4) + ', ' + ll.lng.toFixed(4);
+                });
+        }
+
+        function setLocation(ll) {
+            selected = { lat: ll.lat, lng: ll.lng };
+            marker.setLatLng([ll.lat, ll.lng]);
+            latInput.value = ll.lat.toFixed(6);
+            lngInput.value = ll.lng.toFixed(6);
+            updateBar(ll);
+        }
+
+        map.on('click', function (e) {
+            setLocation(e.latlng);
+            map.setView(e.latlng, Math.max(map.getZoom(), 15));
+        });
+
+        function doSearch() {
+            var q = searchInput.value.trim();
+            if (!q) return;
+            searchError.classList.add('hidden');
+            searchBtn.disabled = true;
+            searchBtn.style.opacity = 0.6;
+            fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) + '&format=json&limit=1', {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!d || !d.length) { showError('Location not found.'); return; }
+                    var lat = parseFloat(d[0].lat), lon = parseFloat(d[0].lon);
+                    map.setView([lat, lon], 15);
+                    setLocation(map.getCenter());
+                })
+                .catch(function () { showError('Search failed. Check your connection.'); })
+                .finally(function () {
+                    searchBtn.disabled = false;
+                    searchBtn.style.opacity = 1;
+                });
+        }
+        searchBtn.addEventListener('click', doSearch);
+        searchInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+
+        document.getElementById('loc-zoom-in').addEventListener('click', function () { map.zoomIn(); });
+        document.getElementById('loc-zoom-out').addEventListener('click', function () { map.zoomOut(); });
+        document.getElementById('loc-locate').addEventListener('click', function () {
+            if (!navigator.geolocation) { showError('Geolocation is not available on this device.'); return; }
+            navigator.geolocation.getCurrentPosition(function (pos) {
+                var ll = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                map.setView([ll.lat, ll.lng], 15);
+                setLocation(ll);
+            }, function () { showError('Could not get your position. Click the map instead.'); });
+        });
+
+        confirmBtn.addEventListener('click', function () {
+            if (!selected) return;
+            confirmBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> Location set';
+            confirmBtn.classList.add('bg-primary', 'text-on-primary', 'border-primary');
+            wrap.classList.add('ring-2', 'ring-secondary/40');
+        });
+
+        if (pharmacyLat !== null && pharmacyLng !== null) {
+            updateBar({ lat: pharmacyLat, lng: pharmacyLng });
+        }
+    })();
+</script>
+<script src="{{ url_for('static', filename='auth.js') }}"></script>
+{% endblock %}

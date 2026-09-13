@@ -9,6 +9,16 @@
             details manually.</p>
     </div>
 
+    {% if error %}
+    <div class="mb-6 bg-error-container border-l-4 border-error p-4 flex items-start gap-4">
+        <span class="material-symbols-outlined text-on-error-container">error</span>
+        <div>
+            <p class="font-label-bold text-on-error-container">Product not saved</p>
+            <p class="font-body-sm text-on-error-container opacity-80">{{ error }}</p>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Barcode scan field: a USB scanner acts like a keyboard, typing the code
      then pressing Enter automatically. This field just needs to be focused
      when that happens - see product-scan.js for the lookup logic. -->
@@ -32,48 +42,53 @@
                 <label class="block font-label-bold text-label-bold text-on-surface">Product Name *</label>
                 <input
                     class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                    type="text" name="name" id="name" required>
+                    type="text" name="name" id="name" required
+                    value="{{ form_data.get('name', '') if form_data else '' }}">
             </div>
             <div class="space-y-2">
-                <label class="block font-label-bold text-label-bold text-on-surface">Category</label>
+                <label class="block font-label-bold text-label-bold text-on-surface">Category *</label>
                 <input
                     class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                    type="text" name="category" placeholder="e.g. Antibiotics">
+                    type="text" name="category" id="category" placeholder="e.g. Antibiotics" required
+                    value="{{ form_data.get('category', '') if form_data else '' }}">
             </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
             <div class="space-y-2">
-                <label class="block font-label-bold text-label-bold text-on-surface">Dosage Form</label>
+                <label class="block font-label-bold text-label-bold text-on-surface">Dosage Form *</label>
                 <select
                     class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                    name="dosage_form">
+                    name="dosage_form" id="dosage_form" required>
                     <option value="">Select...</option>
-                    <option value="Tablet">Tablet</option>
-                    <option value="Capsule">Capsule</option>
-                    <option value="Syrup">Syrup</option>
-                    <option value="Injection">Injection</option>
-                    <option value="Cream">Cream</option>
-                    <option value="Other">Other</option>
+                    <option value="Tablet" {% if form_data and form_data.get('dosage_form') == 'Tablet' %}selected{% endif %}>Tablet</option>
+                    <option value="Capsule" {% if form_data and form_data.get('dosage_form') == 'Capsule' %}selected{% endif %}>Capsule</option>
+                    <option value="Syrup" {% if form_data and form_data.get('dosage_form') == 'Syrup' %}selected{% endif %}>Syrup</option>
+                    <option value="Injection" {% if form_data and form_data.get('dosage_form') == 'Injection' %}selected{% endif %}>Injection</option>
+                    <option value="Cream" {% if form_data and form_data.get('dosage_form') == 'Cream' %}selected{% endif %}>Cream</option>
+                    <option value="Other" {% if form_data and form_data.get('dosage_form') == 'Other' %}selected{% endif %}>Other</option>
                 </select>
             </div>
             <div class="space-y-2">
-                <label class="block font-label-bold text-label-bold text-on-surface">Strength</label>
+                <label class="block font-label-bold text-label-bold text-on-surface">Strength *</label>
                 <input
                     class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                    type="text" name="strength" placeholder="e.g. 500mg">
+                    type="text" name="strength" id="strength" placeholder="e.g. 500mg" required
+                    value="{{ form_data.get('strength', '') if form_data else '' }}">
             </div>
         </div>
 
         <div class="flex gap-6">
             <label class="flex items-center gap-2">
                 <input type="checkbox" name="requires_prescription"
-                    class="rounded-sm border-outline-variant text-secondary focus:ring-secondary">
+                    class="rounded-sm border-outline-variant text-secondary focus:ring-secondary"
+                    {% if form_data and form_data.get('requires_prescription') == 'on' %}checked{% endif %}>
                 <span class="font-label-bold text-label-bold text-on-surface">Requires Prescription</span>
             </label>
             <label class="flex items-center gap-2">
                 <input type="checkbox" name="is_controlled" id="is_controlled"
-                    class="rounded-sm border-outline-variant text-secondary focus:ring-secondary">
+                    class="rounded-sm border-outline-variant text-secondary focus:ring-secondary"
+                    {% if form_data and form_data.get('is_controlled') == 'on' %}checked{% endif %}>
                 <span class="font-label-bold text-label-bold text-on-surface">Controlled Substance</span>
             </label>
         </div>
@@ -111,6 +126,14 @@
                         class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
                         type="url" name="image_url" placeholder="https://.../drug.jpg">
                 </div>
+                <div class="space-y-2 md:col-span-3">
+                    <label class="block font-label-bold text-label-bold text-on-surface">Low Stock Alert Below (units)</label>
+                    <input
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
+                        type="number" name="low_stock_threshold" min="1" placeholder="e.g. 5"
+                        value="{{ form_data.get('low_stock_threshold', '') if form_data else '' }}">
+                    <p class="text-body-sm text-on-surface-variant">Leave blank to use the pharmacy-wide default set in Settings.</p>
+                </div>
             </div>
         </div>
 
@@ -118,16 +141,18 @@
             <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Initial Batch</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
                 <div class="space-y-2">
-                    <label class="block font-label-bold text-label-bold text-on-surface">Batch Number</label>
+                    <label class="block font-label-bold text-label-bold text-on-surface">Batch Number *</label>
                     <input
                         class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                        type="text" name="batch_number" placeholder="e.g. BN-2026-001">
+                        type="text" name="batch_number" id="batch_number" placeholder="e.g. BN-2026-001" required
+                        value="{{ form_data.get('batch_number', '') if form_data else '' }}">
                 </div>
                 <div class="space-y-2">
-                    <label class="block font-label-bold text-label-bold text-on-surface">Expiry Date</label>
+                    <label class="block font-label-bold text-label-bold text-on-surface">Expiry Date *</label>
                     <input
                         class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary transition-all"
-                        type="date" name="expiry_date">
+                        type="date" name="expiry_date" id="expiry_date" required
+                        value="{{ form_data.get('expiry_date', '') if form_data else '' }}">
                 </div>
                 <div class="space-y-2">
                     <label class="block font-label-bold text-label-bold text-on-surface">Initial Quantity</label>
