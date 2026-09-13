@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>{{ code }} &middot; PharmaTrack</title>
+    <script>
+        (function () {
+            if (localStorage.getItem('pharmatrack-theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config" src="{{ url_for('static', filename='tailwind-config.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="err-shell">
+        <div class="err-inner">
+
+            <div class="flex justify-center mb-8">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-outline-variant grid place-items-center">
+                        <span class="material-symbols-outlined text-on-surface text-xl">medication</span>
+                    </div>
+                    <span class="font-display text-display text-on-surface">PharmaTrack</span>
+                </div>
+            </div>
+
+            <div class="err-card p-8 sm:p-10">
+                <div class="flex flex-col items-center text-center">
+
+                    <div class="err-icon">
+                        {% if code == 404 %}
+                        <span class="material-symbols-outlined" style="font-size:44px;">search_off</span>
+                        {% elif code == 403 %}
+                        <span class="material-symbols-outlined" style="font-size:44px;">lock</span>
+                        {% elif code == 500 %}
+                        <span class="material-symbols-outlined" style="font-size:44px;">cloud_off</span>
+                        {% else %}
+                        <span class="material-symbols-outlined" style="font-size:44px;">error</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="err-code">{{ code }}</div>
+                    <h1 class="text-xl font-bold tracking-tight text-on-surface">{{ title }}</h1>
+                    <p class="text-body-md text-on-surface-variant mt-2 max-w-sm leading-relaxed">{{ message }}</p>
+
+                    {% if detail %}
+                    <p class="text-body-sm text-on-surface-variant/70 mt-3 font-mono text-sm break-all">{{ detail }}</p>
+                    {% endif %}
+
+                    <div class="flex flex-wrap justify-center gap-3 mt-8 w-full">
+                        {% if signed_in %}
+                        <a href="{{ url_for('dashboard') }}"
+                            class="px-5 py-3 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
+                            Go to dashboard
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('login') }}"
+                            class="px-5 py-3 bg-secondary text-on-secondary rounded-xl font-label-bold text-label-bold hover:opacity-90 transition-all shadow-sm">
+                            Back to sign in
+                        </a>
+                        {% endif %}
+                        <a href="{{ url_for('dashboard') if signed_in else url_for('register') }}"
+                            class="px-5 py-3 bg-surface-variant text-on-surface rounded-xl font-label-bold text-label-bold hover:opacity-85 transition-all">
+                            {{ 'Open settings' if signed_in else 'Create an account' }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

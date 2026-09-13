@@ -81,33 +81,120 @@ body {
 .auth-brand-logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
 .auth-brand h1 {
     margin: 0;
-    font-size: clamp(28px, 3vw, 40px);
-    line-height: 1.1;
+    font-size: clamp(26px, 2.6vw, 36px);
+    line-height: 1.12;
     letter-spacing: -0.02em;
     font-weight: 800;
-    max-width: 15ch;
+    max-width: 17ch;
 }
 .auth-brand .auth-tagline {
     margin-top: 14px;
-    max-width: 44ch;
-    color: rgba(229, 238, 255, 0.78);
+    max-width: 40ch;
+    color: rgba(229, 238, 255, 0.74);
     line-height: 1.55;
 }
-.auth-brand-features { display: grid; gap: 16px; margin-top: 32px; }
-.auth-brand-feature { display: flex; gap: 14px; align-items: flex-start; }
-.auth-brand-feature .icon {
-    flex: none;
-    width: 38px; height: 38px;
-    display: grid; place-items: center;
-    border-radius: 11px;
-    background: rgba(229, 238, 255, 0.09);
-    border: 1px solid rgba(229, 238, 255, 0.14);
-    color: #8fb6ff;
-    font-size: 20px;
+.auth-middle { margin-top: 56px; }
+.auth-showcase { margin-top: 40px; }
+
+/* Faux product-preview card (decorative, non-interactive) */
+.auth-mock {
+    position: relative;
+    max-width: 384px;
+    border: 1px solid rgba(229, 238, 255, 0.16);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 26px 60px -30px rgba(3, 8, 20, 0.85);
+    overflow: hidden;
+    animation: auth-float 7s ease-in-out infinite;
 }
-.auth-brand-feature .text b { display: block; font-size: 14px; font-weight: 600; color: #fff; }
-.auth-brand-feature .text span { display: block; color: rgba(229, 238, 255, 0.68); font-size: 13px; line-height: 1.45; }
-.auth-brand-foot { color: rgba(229, 238, 255, 0.55); font-size: 12px; }
+.auth-mock::before {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    background:
+        radial-gradient(circle at 15% 0%, rgba(91, 143, 255, 0.30), transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(104, 219, 169, 0.18), transparent 48%);
+    pointer-events: none;
+}
+@keyframes auth-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+.auth-mock-head {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(229, 238, 255, 0.12);
+}
+.auth-mock-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; color: #fff;
+}
+.auth-mock-title .material-symbols-outlined { font-size: 16px; color: #8fb6ff; }
+.auth-mock-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #8fe3b6;
+}
+.auth-mock-pill::before {
+    content: '';
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5);
+    animation: auth-pulse 2s infinite;
+}
+@keyframes auth-pulse {
+    70% { box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+.auth-mock-body {
+    position: relative; z-index: 1;
+    padding: 12px 16px; display: grid; gap: 10px;
+}
+.auth-mock-item { display: flex; align-items: center; gap: 10px; }
+.auth-mock-sym {
+    flex: none; width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border-radius: 10px;
+    background: rgba(229, 238, 255, 0.08);
+    border: 1px solid rgba(229, 238, 255, 0.12);
+    color: #a9c4ff; font-size: 16px;
+}
+.auth-mock-info { min-width: 0; flex: 1; }
+.auth-mock-info b {
+    display: block; font-size: 12.5px; font-weight: 600; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.auth-mock-info .meta { display: block; font-size: 11px; color: rgba(229, 238, 255, 0.55); margin-top: 1px; }
+.auth-mock-badge {
+    flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+}
+.auth-mock-badge.low { color: #ffd08e; background: rgba(255, 190, 110, 0.12); border: 1px solid rgba(255, 190, 110, 0.28); }
+.auth-mock-badge.ok { color: #8fe3b6; background: rgba(74, 222, 128, 0.10); border: 1px solid rgba(74, 222, 128, 0.22); }
+.auth-mock-foot {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(229, 238, 255, 0.12);
+    font-size: 12px; color: rgba(229, 238, 255, 0.72);
+}
+.auth-mock-foot em { font-style: normal; font-weight: 700; color: #fff; }
+
+/* Slim capability chips under the preview */
+.auth-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.auth-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 13px; border-radius: 999px;
+    background: rgba(229, 238, 255, 0.06);
+    border: 1px solid rgba(229, 238, 255, 0.12);
+    color: rgba(229, 238, 255, 0.88);
+    font-size: 12px; font-weight: 500;
+}
+.auth-chip .material-symbols-outlined { font-size: 15px; color: #8fb6ff; }
+
+.auth-brand-foot { color: rgba(229, 238, 255, 0.5); font-size: 12px; }
 
 /* Form panel */
 .auth-form {
@@ -139,3 +226,36 @@ body {
     vertical-align: -2px;
 }
 button[disabled] { cursor: not-allowed; opacity: 0.8; }
+
+/* ---------- Error page (404 / 403 / 500) ---------- */
+.err-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+    background: var(--color-background);
+}
+.err-inner { width: 100%; max-width: 480px; }
+.err-card {
+    background: var(--color-surface-container-lowest);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 20px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.12);
+}
+.err-icon {
+    width: 84px; height: 84px;
+    display: grid; place-items: center;
+    border-radius: 24px;
+    background: var(--color-secondary-container);
+    color: var(--color-on-secondary-container);
+    margin-bottom: 20px;
+}
+.err-code {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--color-on-surface);
+    opacity: 0.16;
+}

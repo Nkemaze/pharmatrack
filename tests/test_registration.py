@@ -243,5 +243,126 @@ class RegistrationFlowTest(unittest.TestCase):
         )
 
 
+class ErrorHandlingTest(unittest.TestCase):
+    """Friendly branded error pages for the browser, JSON for the API,
+    and safe post-login redirects."""
+
+    password = "Correct-Horse-Battery-9"
+
+    @classmethod
+    def setUpClass(cls):
+        from app import app
+
+        cls.app = app
+
+        def _raise_for_test():
+            raise RuntimeError("intentional test failure")
+
+        def _raise_api_for_test():
+            raise RuntimeError("intentional api test failure")
+
+        # The shared app may already have served a request from another test
+        # module, which freezes route registration. Unfreeze briefly, add two
+        # throwaway routes that intentionally blow up, then re-freeze.
+        app._got_first_request = False
+        app.add_url_rule("/__error_test__", "__error_test__", _raise_for_test)
+        app.add_url_rule(
+            "/api/v1/__api_error_test__", "__api_error_test__", _raise_api_for_test)
+        app._got_first_request = True
+
+    def setUp(self):
+        from database.queries import create_user
+        from database.db import get_db_connection
+
+        conn = get_db_connection()
+        try:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            for table in ("token_blocklist", "login_attempt", "loss_report",
+                          "stock_movement", "product_batch", "product",
+                          "settings", "user", "pharmacy"):
+                conn.execute(f"DELETE FROM {table}")
+            conn.commit()
+        finally:
+            conn.close()
+        create_user("PlatformAdmin", "admin", self.password)
+        self.client = self.app.test_client()
+
+    def web_login(self, name, password=None):
+        return self.client.post(
+            "/login",
+            data={"name": name, "password": password or self.password, "next": ""},
+        )
+
+    def test_404_shows_branded_page(self):
+        response = self.client.get("/no/such/page")
+        self.assertEqual(response.status_code, 404)
+        self.assertIn(b"Page not found", response.data)
+        self.assertIn(b"err-card", response.data)
+
+    def test_404_for_api_is_json(self):
+        response = self.client.get("/api/v1/no/such/resource")
+        self.assertEqual(response.status_code, 404)
+        self.assertIn(b"Not found", response.data)
+        self.assertNotIn(b"err-card", response.data)
+
+    def test_403_shows_branded_page(self):
+        # An admin is deliberately barred from pharmacist inventory routes.
+        self.web_login("PlatformAdmin")
+        response = self.client.get("/products")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b"Access denied", response.data)
+        self.assertIn(b"err-card", response.data)
+
+    def test_500_shows_branded_page(self):
+        response = self.client.get("/__error_test__")
+        self.assertEqual(response.status_code, 500)
+        self.assertIn(b"Something went wrong", response.data)
+        self.assertIn(b"err-card", response.data)
+
+    def test_500_for_api_is_json(self):
+        response = self.client.get("/api/v1/__api_error_test__")
+        self.assertEqual(response.status_code, 500)
+        self.assertIn(b'"error"', response.data)
+        self.assertIn(b"Internal server error", response.data)
+        self.assertNotIn(b"err-card", response.data)
+
+    def test_unsafe_next_falls_back_to_dashboard(self):
+        # A crafted external 'next' must not become the redirect target.
+        response = self.client.post(
+            "/login",
+            data={
+                "name": "PlatformAdmin",
+                "password": self.password,
+                "next": "https://evil.example/phish",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/")
+
+        # Scheme-relative doubles (//...) are also rejected.
+        response = self.client.post(
+            "/login",
+            data={
+                "name": "PlatformAdmin",
+                "password": self.password,
+                "next": "//evil.example",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/")
+
+    def test_same_site_next_is_kept(self):
+        response = self.client.post(
+            "/login",
+            data={
+                "name": "PlatformAdmin",
+                "password": self.password,
+                "next": "/movements",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/movements", response.headers["Location"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

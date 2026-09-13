@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import functools
+from werkzeug.exceptions import HTTPException
 from database.db import init_db
 from database.queries import (
     get_product_list, get_product_detail,
@@ -215,11 +216,17 @@ def register():
                 # Even a tampered request can't create a second admin.
                 error = "An admin account already exists for this pharmacy. Register as a pharmacist instead."
             else:
-                user_id = create_user(name=name, role=role, password=password)
-                session['user_id'] = user_id
-                session['user_name'] = name
-                session['role'] = role
-                return redirect(url_for('dashboard'))
+                try:
+                    user_id = create_user(name=name, role=role, password=password)
+                except Exception:
+                    app.logger.exception('Account registration failed (desktop)')
+                    error = ('We could not create your account right now. '
+                             'Please try again in a moment.')
+                else:
+                    session['user_id'] = user_id
+                    session['user_name'] = name
+                    session['role'] = role
+                    return redirect(url_for('dashboard'))
 
         elif role == 'admin':
             # Hosted bootstrap: the very first account is the platform
@@ -238,9 +245,15 @@ def register():
             elif user_name_exists(name):
                 error = "That name is already registered. Choose another."
             else:
-                create_user(name=name, role='admin', password=password)
-                success = ("Administrator account created. "
-                           "Sign in to review pharmacy applications.")
+                try:
+                    create_user(name=name, role='admin', password=password)
+                except Exception:
+                    app.logger.exception('Admin bootstrap failed')
+                    error = ('We could not create the administrator account right '
+                             'now. Please try again in a moment.')
+                else:
+                    success = ("Administrator account created. "
+                               "Sign in to review pharmacy applications.")
 
         else:
             # Hosted self-registration: a pharmacy application. It is saved
@@ -262,17 +275,23 @@ def register():
             elif user_name_exists(email):
                 error = "That email is already registered. Sign in instead."
             else:
-                create_pharmacy_registration(
-                    name=pharmacy_name,
-                    email=email,
-                    password=password,
-                    address=request.form.get('address', '').strip() or None,
-                    city=request.form.get('city', '').strip() or None,
-                    phone=request.form.get('phone', '').strip() or None,
-                )
-                success = ("Your pharmacy registration has been submitted and "
-                           "is now awaiting administrator approval. You will be "
-                           "able to sign in once it has been approved.")
+                try:
+                    create_pharmacy_registration(
+                        name=pharmacy_name,
+                        email=email,
+                        password=password,
+                        address=request.form.get('address', '').strip() or None,
+                        city=request.form.get('city', '').strip() or None,
+                        phone=request.form.get('phone', '').strip() or None,
+                    )
+                except Exception:
+                    app.logger.exception('Pharmacy application failed')
+                    error = ('We could not submit your application right now. '
+                             'Please try again in a moment.')
+                else:
+                    success = ("Your pharmacy registration has been submitted and "
+                               "is now awaiting administrator approval. You will be "
+                               "able to sign in once it has been approved.")
 
     return render_template('register.html', error=error, success=success,
                            admin_taken=admin_taken, is_hosted=is_hosted)
@@ -285,28 +304,34 @@ def login():
         name = request.form.get('name', '')
         password = request.form.get('password', '')
 
-        locked_seconds = _check_lockout(name)
-        if locked_seconds > 0:
-            error = f"Too many failed attempts. Try again in {int(locked_seconds)} seconds."
-        else:
-            user = authenticate_user(name, password)
-            if user:
-                block_message = login_status_block(user)
-                if block_message:
-                    # Valid credentials, but the account (or its pharmacy
-                    # tenant) is pending approval, suspended or rejected.
-                    error = block_message
-                else:
-                    _clear_attempts(name)
-                    session['user_id'] = user['id']
-                    session['user_name'] = user['name']
-                    session['role'] = user['role']
-                    next_url = request.form.get('next') or url_for('dashboard')
-                    return redirect(next_url)
+        try:
+            locked_seconds = _check_lockout(name)
+            if locked_seconds > 0:
+                error = f"Too many failed attempts. Try again in {int(locked_seconds)} seconds."
             else:
-                # Deliberately generic - never reveals whether the name exists
-                _record_failed_attempt(name)
-                error = "Incorrect name or password."
+                user = authenticate_user(name, password)
+                if user:
+                    block_message = login_status_block(user)
+                    if block_message:
+                        # Valid credentials, but the account (or its pharmacy
+                        # tenant) is pending approval, suspended or rejected.
+                        error = block_message
+                    else:
+                        _clear_attempts(name)
+                        session['user_id'] = user['id']
+                        session['user_name'] = user['name']
+                        session['role'] = user['role']
+                        return redirect(_safe_next(request.form.get('next')))
+                else:
+                    # Deliberately generic - never reveals whether the name exists
+                    _record_failed_attempt(name)
+                    error = "Incorrect name or password."
+        except Exception:
+            # A transient DB hiccup must not bounce the user onto a bare 500
+            # page in the middle of a sign-in - show a friendly retry message.
+            app.logger.exception('Login failed while checking credentials')
+            error = ('We could not complete your sign-in right now. '
+                     'Please try again in a moment.')
 
     return render_template('login.html', error=error, next=request.args.get('next', ''))
 
@@ -315,6 +340,75 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+
+def _safe_next(raw):
+    """Only allow same-site relative redirects after sign-in, so a crafted
+    'next' value can never bounce the user to an external site. Falls back
+    to the dashboard for any value that is missing, external, or scheme-http
+    (e.g. '//evil.example')."""
+    candidate = (raw or '').strip()
+    if not candidate.startswith('/') or candidate.startswith('//'):
+        return url_for('dashboard')
+    return candidate
+
+
+# --- Friendly error pages (404 / 403 / 500) ---
+# Any unhandled exception renders a branded page instead of a bare browser
+# error. JSON API callers still get JSON so the customer app can parse it.
+
+def _wants_json():
+    return request.path.startswith('/api/')
+
+
+def _render_error(code, title, message, detail=None):
+    return render_template(
+        'error.html',
+        code=code, title=title, message=message, detail=detail,
+        signed_in=bool(session.get('user_id')),
+    ), code
+
+
+@app.errorhandler(404)
+def not_found(e):
+    if _wants_json():
+        return jsonify(error='Not found.'), 404
+    return _render_error(
+        404, 'Page not found',
+        'The page you are looking for may have moved or never existed.')
+
+
+@app.errorhandler(403)
+def forbidden(e):
+    if _wants_json():
+        return jsonify(error='Forbidden.'), 403
+    return _render_error(
+        403, 'Access denied',
+        'Your account is not allowed to view this page.')
+
+
+@app.errorhandler(500)
+def server_error(e):
+    app.logger.exception('Unhandled server error: %s', e)
+    if _wants_json():
+        return jsonify(error='Internal server error.'), 500
+    return _render_error(
+        500, 'Something went wrong',
+        'An unexpected error occurred. Please try again in a moment.')
+
+
+@app.errorhandler(Exception)
+def unhandled_exception(e):
+    # Let Flask's built-in handlers deal with 4xx/5xx HTTP exceptions; only
+    # truly unexpected errors are converted into the branded 500 page.
+    if isinstance(e, HTTPException):
+        return e
+    app.logger.exception('Unhandled exception during request')
+    if _wants_json():
+        return jsonify(error='Internal server error.'), 500
+    return _render_error(
+        500, 'Something went wrong',
+        'An unexpected error occurred. Please try again in a moment.')
 
 
 # --- Public APK download (Phase 4: hosted on Render) ---
