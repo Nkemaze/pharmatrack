@@ -475,8 +475,6 @@ def get_public_inventory(search=None, pharmacy_id=None):
         params += (pharmacy_id,)
     if search:
         like_term = f"%{search}%"
-        filters.append("p.name LIKE ?")
-        params += (like_term,)
         filters.append("(p.name LIKE ? OR p.category LIKE ? OR p.dosage_form LIKE ?)")
         params += (like_term, like_term, like_term)
     if filters:
