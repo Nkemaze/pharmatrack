@@ -345,6 +345,65 @@ def delete_pharmacy_application(pharmacy_id):
         conn.close()
 
 
+def delete_pharmacy(pharmacy_id):
+    """Permanently remove a pharmacy and all records owned by that tenant.
+
+    This is an irreversible platform-admin operation. Related loss reports,
+    movements, batches, products, users and pharmacy-scoped tokens are removed
+    in dependency order, in one transaction.
+    """
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT id FROM pharmacy WHERE id = ?", (pharmacy_id,)
+        ).fetchone()
+        if row is None:
+            return False
+
+        conn.execute("""
+            DELETE FROM loss_report
+            WHERE stock_movement_id IN (
+                SELECT sm.id FROM stock_movement sm
+                LEFT JOIN product_batch pb ON pb.id = sm.product_batch_id
+                LEFT JOIN product p ON p.id = pb.product_id
+                LEFT JOIN "user" u ON u.id = sm.performed_by_user_id
+                LEFT JOIN "user" approver ON approver.id = sm.approved_by_user_id
+                WHERE p.pharmacy_id = ? OR u.pharmacy_id = ?
+                   OR approver.pharmacy_id = ?
+            )
+        """, (pharmacy_id, pharmacy_id, pharmacy_id))
+        conn.execute("""
+            DELETE FROM stock_movement
+            WHERE product_batch_id IN (
+                SELECT pb.id FROM product_batch pb
+                JOIN product p ON p.id = pb.product_id
+                WHERE p.pharmacy_id = ?
+            )
+            OR performed_by_user_id IN (
+                SELECT id FROM "user" WHERE pharmacy_id = ?
+            )
+            OR approved_by_user_id IN (
+                SELECT id FROM "user" WHERE pharmacy_id = ?
+            )
+        """, (pharmacy_id, pharmacy_id, pharmacy_id))
+        conn.execute("""
+            DELETE FROM product_batch
+            WHERE product_id IN (
+                SELECT id FROM product WHERE pharmacy_id = ?
+            )
+        """, (pharmacy_id,))
+        conn.execute("DELETE FROM product WHERE pharmacy_id = ?", (pharmacy_id,))
+        conn.execute('DELETE FROM "user" WHERE pharmacy_id = ?', (pharmacy_id,))
+        conn.execute("DELETE FROM pharmacy WHERE id = ?", (pharmacy_id,))
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def login_status_block(user):
     """Returns a displayable message if an account must stay signed out
     (pending approval, suspended or rejected), else None. Used by both the

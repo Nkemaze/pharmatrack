@@ -30,7 +30,7 @@ from database.queries import (
     login_attempt_lockout, record_login_attempt, clear_login_attempts,
     create_pharmacy_registration, create_pharmacy_account, get_pharmacies_with_applicant,
     get_pending_pharmacy_count, get_pending_setup_count, update_pharmacy_status,
-    delete_pharmacy_application, login_status_block,
+    delete_pharmacy_application, delete_pharmacy, login_status_block,
 )
 from api import api_v1_bp
 
@@ -1147,6 +1147,8 @@ def manage_pharmacies():
         active_page='pharmacies',
         topbar_title='Manage Pharmacies',
         pharmacies=get_pharmacies_with_applicant(),
+        success=request.args.get('success'),
+        error=request.args.get('error'),
     )
 
 
@@ -1207,8 +1209,12 @@ def add_pharmacy():
 @admin_required
 def pharmacy_action(pharmacy_id, action):
     if action == 'delete':
-        delete_pharmacy_application(pharmacy_id)
-        return redirect(url_for('manage_pharmacies'))
+        if not delete_pharmacy(pharmacy_id):
+            return redirect(url_for('manage_pharmacies', error='Pharmacy not found.'))
+        return redirect(url_for(
+            'manage_pharmacies',
+            success='Pharmacy and its inventory, accounts, and related records were deleted.',
+        ))
     if action not in _PHARMACY_STATUS_ACTIONS:
         abort(404)
     status, user_status = _PHARMACY_STATUS_ACTIONS[action]

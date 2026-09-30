@@ -26,7 +26,7 @@ from app import app
 from database.db import get_db_connection
 from database.queries import (
     create_pharmacy_registration, create_user, update_pharmacy_status,
-    delete_pharmacy_application, get_pharmacies_with_applicant,
+    delete_pharmacy_application, delete_pharmacy, get_pharmacies_with_applicant,
     get_pending_pharmacy_count, login_status_block,
 )
 
@@ -206,6 +206,69 @@ class RegistrationFlowTest(unittest.TestCase):
             conn.close()
         self.assertIsNone(pharmacy)
         self.assertIsNone(user_row)
+
+    def test_admin_can_permanently_delete_active_pharmacy_and_inventory(self):
+        pharmacy_id = create_pharmacy_registration(
+            name="Permanent Delete Pharmacy", email="permanent@example.com",
+            password=self.password,
+        )
+        update_pharmacy_status(pharmacy_id, "active", user_status="active")
+        conn = get_db_connection()
+        try:
+            product_id = "delete-product"
+            batch_id = "delete-batch"
+            movement_id = "delete-movement"
+            conn.execute(
+                "INSERT INTO product (id, pharmacy_id, name) VALUES (?, ?, ?)",
+                (product_id, pharmacy_id, "Delete Test Medicine"),
+            )
+            conn.execute(
+                "INSERT INTO product_batch (id, product_id) VALUES (?, ?)",
+                (batch_id, product_id),
+            )
+            conn.execute("""
+                INSERT INTO stock_movement
+                    (id, product_batch_id, movement_type, quantity)
+                VALUES (?, ?, 'receipt', 1)
+            """, (movement_id, batch_id))
+            conn.execute("""
+                INSERT INTO loss_report (id, stock_movement_id, circumstances)
+                VALUES ('delete-loss', ?, 'test record')
+            """, (movement_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+        with self.client.session_transaction() as session:
+            session["user_id"] = "test-admin"
+            session["role"] = "admin"
+            session["user_name"] = "PlatformAdmin"
+
+        response = self.client.post(
+            f"/settings/pharmacies/{pharmacy_id}/delete", follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Pharmacy and its inventory", response.data)
+
+        conn = get_db_connection()
+        try:
+            for table in ("pharmacy", "product", "product_batch", "stock_movement", "loss_report"):
+                row = conn.execute(
+                    f"SELECT 1 FROM {table} WHERE id = ?",
+                    (pharmacy_id if table == "pharmacy" else {
+                        "product": product_id,
+                        "product_batch": batch_id,
+                        "stock_movement": movement_id,
+                        "loss_report": "delete-loss",
+                    }[table],),
+                ).fetchone()
+                self.assertIsNone(row, f"{table} row remains after tenant delete")
+            user_row = conn.execute(
+                'SELECT 1 FROM "user" WHERE name = ?', ("permanent@example.com",)
+            ).fetchone()
+            self.assertIsNone(user_row)
+        finally:
+            conn.close()
 
     def test_admin_manage_page_is_admin_only(self):
         # Anonymous must be refused.

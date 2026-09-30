@@ -101,7 +101,7 @@
                         </button>
                     </form>
                     <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
-                        onsubmit="return confirm('Delete {{ p.name }} application? This cannot be undone.');">
+                        onsubmit="return confirm('Permanently delete {{ p.name }} and all its inventory, accounts, and related records? This cannot be undone.');">
                         <button type="submit" title="Delete"
                             class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
                             <span class="material-symbols-outlined">delete</span>
@@ -116,7 +116,7 @@
                         </button>
                     </form>
                     <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
-                        onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                        onsubmit="return confirm('Permanently delete {{ p.name }} and all its inventory, accounts, and related records? This cannot be undone.');">
                         <button type="submit" title="Delete"
                             class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
                             <span class="material-symbols-outlined">delete</span>
@@ -130,7 +130,7 @@
                         </button>
                     </form>
                     <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
-                        onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                        onsubmit="return confirm('Permanently delete {{ p.name }} and all its inventory, accounts, and related records? This cannot be undone.');">
                         <button type="submit" title="Delete"
                             class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
                             <span class="material-symbols-outlined">delete</span>
@@ -144,7 +144,7 @@
                         </button>
                     </form>
                     <form method="POST" action="{{ url_for('pharmacy_action', pharmacy_id=p.id, action='delete') }}"
-                        onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                        onsubmit="return confirm('Permanently delete {{ p.name }} and all its inventory, accounts, and related records? This cannot be undone.');">
                         <button type="submit" title="Delete"
                             class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors">
                             <span class="material-symbols-outlined">delete</span>
