@@ -15,6 +15,7 @@ from database.db import init_db
 from database.queries import (
     get_product_list, get_product_detail,
     create_product, get_product_by_barcode,
+    create_product, create_batch, get_product_by_barcode,
     get_products_for_dropdown, get_batches_for_product,
     create_movement, get_product_id_for_batch, get_product_id_for_batch_owned_by,
     update_batch,
@@ -773,9 +774,60 @@ def product_list():
 @pharmacist_required
 def product_details(product_id):
     product = get_product_detail(product_id)
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
+    product = get_product_detail(product_id, pharmacy_id=pharmacy_id)
     if product is None:
         abort(404)
     return render_template('product_details.html', active_page='inventory', product=product)
+
+
+@app.route('/products/<product_id>/batches', methods=['POST'])
+@pharmacist_required
+def add_batch_to_product(product_id):
+    user = get_user_by_id(session.get('user_id'))
+    pharmacy_id = user.get('pharmacy_id') if user else None
+    product = get_product_detail(product_id, pharmacy_id=pharmacy_id)
+    if product is None:
+        abort(404)
+
+    batch_number = (request.form.get('batch_number') or '').strip()
+    expiry_date = (request.form.get('expiry_date') or '').strip()
+    initial_quantity_raw = (request.form.get('initial_quantity') or '0').strip()
+
+    if not batch_number or not expiry_date:
+        return render_template(
+            'product_details.html', active_page='inventory', product=product,
+            batch_error="Batch number and expiry date are required."
+        ), 400
+
+    try:
+        initial_quantity = int(initial_quantity_raw)
+        if initial_quantity < 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return render_template(
+            'product_details.html', active_page='inventory', product=product,
+            batch_error="Initial quantity must be a non-negative whole number."
+        ), 400
+
+    try:
+        create_batch(
+            product_id=product_id,
+            batch_number=batch_number,
+            expiry_date=expiry_date,
+            initial_quantity=initial_quantity,
+            performed_by_user_id=session.get('user_id'),
+            pharmacy_id=pharmacy_id,
+        )
+    except Exception as exc:
+        app.logger.exception('Failed to create batch')
+        return render_template(
+            'product_details.html', active_page='inventory', product=product,
+            batch_error=f"Could not add batch: {exc}"
+        ), 400
+
+    return redirect(url_for('product_details', product_id=product_id))
 
 
 def _parse_low_stock_threshold(raw):

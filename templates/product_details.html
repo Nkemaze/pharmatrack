@@ -16,6 +16,16 @@
 </div>
 {% endif %}
 
+{% if batch_error %}
+<div class="bg-error-container border-l-4 border-error p-4 flex items-start gap-4 mb-4 rounded shadow-sm">
+    <span class="material-symbols-outlined text-on-error-container">error</span>
+    <div>
+        <p class="font-label-bold text-on-error-container">Batch creation error</p>
+        <p class="font-body-sm text-on-error-container opacity-90">{{ batch_error }}</p>
+    </div>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
     <div
         class="lg:col-span-2 bg-surface-container-lowest border border-outline-variant p-6 flex flex-col justify-between">
@@ -49,8 +59,14 @@
     <!-- Action Panel -->
     <div class="bg-surface-container border border-outline-variant p-6 space-y-4">
         <h3 class="font-headline-md text-headline-md text-on-surface">Quick Actions</h3>
+        <button type="button" onclick="document.getElementById('new-batch-modal').classList.remove('hidden')"
+            class="w-full bg-secondary text-on-secondary py-3 flex items-center justify-center gap-2 rounded hover:opacity-90 transition-opacity font-label-bold text-label-bold">
+            <span class="material-symbols-outlined">library_add</span>
+            Receive New Batch
+        </button>
         <a href="{{ url_for('record_movement') }}"
             class="w-full bg-secondary text-on-secondary py-3 flex items-center justify-center gap-2 rounded hover:opacity-90 transition-opacity font-label-bold text-label-bold">
+            class="w-full bg-surface-container-lowest border border-outline text-on-surface py-3 flex items-center justify-center gap-2 rounded hover:bg-surface-container-high transition-colors font-label-bold text-label-bold">
             <span class="material-symbols-outlined">add_box</span>
             Record Movement
         </a>
@@ -68,6 +84,16 @@
         <h3 class="font-headline-md text-headline-md text-on-surface">Active Batches</h3>
         <span class="text-body-sm font-body-sm text-on-surface-variant">{{ product.batches | length }} Batch{{ 'es' if
             product.batches | length != 1 else '' }}</span>
+        <div class="flex items-center gap-2">
+            <h3 class="font-headline-md text-headline-md text-on-surface">Active Batches</h3>
+            <span class="text-body-sm font-body-sm text-on-surface-variant">({{ product.batches | length }} Batch{{ 'es' if
+                product.batches | length != 1 else '' }})</span>
+        </div>
+        <button type="button" onclick="document.getElementById('new-batch-modal').classList.remove('hidden')"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-label-bold bg-secondary text-on-secondary rounded hover:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined text-sm">add</span>
+            Receive New Batch
+        </button>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
@@ -173,6 +199,51 @@
         </table>
     </div>
 </section>
+
+<!-- Receive New Batch Modal -->
+<div id="new-batch-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl max-w-md w-full p-6 shadow-xl space-y-5">
+        <div class="flex justify-between items-center border-b border-outline-variant pb-3">
+            <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+                <span class="material-symbols-outlined text-secondary">library_add</span>
+                Receive New Batch
+            </h3>
+            <button type="button" onclick="document.getElementById('new-batch-modal').classList.add('hidden')"
+                class="text-on-surface-variant hover:text-on-surface">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('add_batch_to_product', product_id=product.id) }}" class="space-y-4">
+            <div class="space-y-1">
+                <label class="block font-label-bold text-label-bold text-on-surface" for="batch_number">Batch Number</label>
+                <input type="text" id="batch_number" name="batch_number" required placeholder="e.g. BN-2026-002"
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary">
+            </div>
+            <div class="space-y-1">
+                <label class="block font-label-bold text-label-bold text-on-surface" for="expiry_date">Expiry Date</label>
+                <input type="date" id="expiry_date" name="expiry_date" required
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary">
+            </div>
+            <div class="space-y-1">
+                <label class="block font-label-bold text-label-bold text-on-surface" for="initial_quantity">Quantity Received (Units)</label>
+                <input type="number" id="initial_quantity" name="initial_quantity" min="0" value="0"
+                    class="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary">
+                <p class="text-xs text-on-surface-variant">Logs an opening stock receipt movement for this batch.</p>
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-outline-variant">
+                <button type="button" onclick="document.getElementById('new-batch-modal').classList.add('hidden')"
+                    class="px-4 py-2 text-body-md font-label-bold border border-outline rounded-lg text-on-surface hover:bg-surface-container transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-body-md font-label-bold bg-secondary text-on-secondary rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">check</span>
+                    Save Batch
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

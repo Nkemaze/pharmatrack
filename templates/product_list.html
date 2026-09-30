@@ -181,8 +181,7 @@
                 {% else %}
                 <tr>
                     <td colspan="6" class="px-cell-padding-h py-8 text-center text-on-surface-variant">
-                        {% if search_query %}No products match "{{ search_query }}".{% else %}No products yet. Run
-                        database/seed.py or add a product to get started.{% endif %}
+                        {% if search_query %}No products match "{{ search_query }}".{% else %}No products yet. Add a product to get started.{% endif %}
                     </td>
                 </tr>
                 {% endfor %}

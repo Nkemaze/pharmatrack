@@ -477,6 +477,8 @@ def get_public_inventory(search=None, pharmacy_id=None):
         like_term = f"%{search}%"
         filters.append("p.name LIKE ?")
         params += (like_term,)
+        filters.append("(p.name LIKE ? OR p.category LIKE ? OR p.dosage_form LIKE ?)")
+        params += (like_term, like_term, like_term)
     if filters:
         base_query += " AND " + " AND ".join(filters)
     cur.execute(base_query + " GROUP BY p.id, ph.name ORDER BY p.name", params)
@@ -687,6 +689,48 @@ def create_product(name, category, strength, dosage_form, barcode,
 
         conn.commit()
         return product_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def create_batch(product_id, batch_number, expiry_date, initial_quantity=0,
+                 performed_by_user_id=None, pharmacy_id=None):
+    """Adds a new batch to an existing product, and optionally records the
+    initial 'receipt' movement. Validates that the product exists and belongs
+    to pharmacy_id if provided."""
+    import uuid
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if pharmacy_id:
+            cur.execute("SELECT id FROM product WHERE id = ? AND pharmacy_id = ?",
+                        (product_id, pharmacy_id))
+        else:
+            cur.execute("SELECT id FROM product WHERE id = ?", (product_id,))
+        if cur.fetchone() is None:
+            raise ValueError("Product not found.")
+
+        batch_id = str(uuid.uuid4())
+        cur.execute(
+            """INSERT INTO product_batch (id, product_id, batch_number, expiry_date)
+               VALUES (?, ?, ?, ?)""",
+            (batch_id, product_id, batch_number, expiry_date)
+        )
+
+        if initial_quantity and int(initial_quantity) > 0:
+            cur.execute(
+                """INSERT INTO stock_movement
+                   (id, product_batch_id, movement_type, quantity, performed_by_user_id, reason)
+                   VALUES (?, ?, 'receipt', ?, ?, ?)""",
+                (str(uuid.uuid4()), batch_id, int(initial_quantity), performed_by_user_id,
+                 "Initial stock on batch creation")
+            )
+
+        conn.commit()
+        return batch_id
     except Exception:
         conn.rollback()
         raise

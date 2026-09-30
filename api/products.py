@@ -12,6 +12,8 @@ from api.validation import (
 from database.queries import (
     create_product, get_batches_for_product, get_product_detail, get_product_list,
     get_public_inventory, update_product,
+    create_batch, create_product, get_batches_for_product, get_product_detail,
+    get_product_list, get_public_inventory, update_product,
 )
 
 @api_v1_bp.get('/products')
@@ -133,3 +135,28 @@ def list_batches(product_id):
     if get_product_detail(product_id, pharmacy_id=get_api_pharmacy_id()) is None:
         return _api_error('Product not found.', 404)
     return jsonify(batches=get_batches_for_product(product_id, pharmacy_id=get_api_pharmacy_id()))
+
+
+@api_v1_bp.post('/products/<product_id>/batches')
+@role_required('pharmacy', 'admin')
+def add_batch(product_id):
+    try:
+        data = get_json_object()
+        reject_unknown_fields(data, {'batch_number', 'expiry_date', 'initial_quantity'})
+        batch_number = required_string(data, 'batch_number')
+        expiry_date = iso_date(data, 'expiry_date')
+        initial_quantity = integer(data, 'initial_quantity', default=0, minimum=0)
+
+        batch_id = create_batch(
+            product_id=product_id,
+            batch_number=batch_number,
+            expiry_date=expiry_date,
+            initial_quantity=initial_quantity,
+            performed_by_user_id=get_jwt_identity(),
+            pharmacy_id=get_api_pharmacy_id(),
+        )
+    except ValueError as exc:
+        return _api_error(str(exc), 404 if 'not found' in str(exc).lower() else 400)
+    except (TypeError, ValidationError) as exc:
+        return _api_error(str(exc))
+    return jsonify(batch_id=batch_id), 201

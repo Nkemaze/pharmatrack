@@ -287,6 +287,91 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 429)
         self.assertIn("Retry-After", response.headers)
 
+    def test_create_subsequent_batch(self):
+        pharmacy_headers = self.authorization_header("Pharmacist")
+        product_id = self.create_product(pharmacy_headers, name="Batch Test Drug", initial_quantity=10)
+
+        # Add a 2nd batch
+        batch_payload = {
+            "batch_number": "BATCH-002",
+            "expiry_date": "2028-06-30",
+            "initial_quantity": 25,
+        }
+        response = self.client.post(
+            f"/api/v1/products/{product_id}/batches",
+            headers=pharmacy_headers,
+            json=batch_payload,
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.get_json()
+        self.assertIn("batch_id", data)
+
+        # Verify batches list has both batches
+        response = self.client.get(
+            f"/api/v1/products/{product_id}/batches",
+            headers=pharmacy_headers,
+        )
+        self.assertEqual(response.status_code, 200)
+        batches = response.get_json()["batches"]
+        self.assertEqual(len(batches), 2)
+        batch_numbers = [b["batch_number"] for b in batches]
+        self.assertIn("Batc-001", batch_numbers)
+        self.assertIn("BATCH-002", batch_numbers)
+
+        # Verify product detail stock is 10 + 25 = 35
+        response = self.client.get(
+            f"/api/v1/products/{product_id}",
+            headers=pharmacy_headers,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["product"]["total_stock"], 35)
+
+        # Test validation error on missing batch_number
+        response = self.client.post(
+            f"/api/v1/products/{product_id}/batches",
+            headers=pharmacy_headers,
+            json={"expiry_date": "2028-06-30"},
+        )
+        self.assertEqual(response.status_code, 400)
+
+        # Test 404 for non-existent product
+        response = self.client.post(
+            "/api/v1/products/does-not-exist/batches",
+            headers=pharmacy_headers,
+            json=batch_payload,
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_health_probe(self):
+        response = self.client.get("/api/v1/health")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data.get("status"), "ok")
+        self.assertTrue(data.get("db"))
+
+    def test_search_by_category_and_dosage_form(self):
+        pharmacy_headers = self.authorization_header("Pharmacist")
+        self.create_product(
+            pharmacy_headers,
+            name="CoughRelief",
+            category="Respiratory",
+            dosage_form="Syrup",
+            price_per_unit=500,
+            initial_quantity=10,
+        )
+
+        # Search by category
+        res_cat = self.client.get("/api/v1/products/search?q=Respirat")
+        self.assertEqual(res_cat.status_code, 200)
+        items = res_cat.get_json()["products"]
+        self.assertTrue(any(p["name"] == "CoughRelief" for p in items))
+
+        # Search by dosage form
+        res_form = self.client.get("/api/v1/products/search?q=Syrup")
+        self.assertEqual(res_form.status_code, 200)
+        items = res_form.get_json()["products"]
+        self.assertTrue(any(p["name"] == "CoughRelief" for p in items))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
