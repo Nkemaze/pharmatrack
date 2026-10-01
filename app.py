@@ -679,8 +679,8 @@ def unhandled_exception(e):
 
 APK_DIR = os.environ.get('PHARMATRACK_APK_DIR') or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'static', 'downloads')
-APK_FILENAME = 'pharmatrack-v1.0.2.apk'
-APK_VERSION = '1.0.2'
+APK_FILENAME = 'pharmatrack-v1.0.3.apk'
+APK_VERSION = '1.0.3'
 
 
 def _apk_path():
