@@ -159,6 +159,39 @@ class RegistrationFlowTest(unittest.TestCase):
         update_pharmacy_status(pharmacy["id"], "active", user_status="active")
         self.assertEqual(self.api_login("citycare@example.com").status_code, 200)
 
+    def test_suspending_a_pharmacy_does_not_suspend_its_legacy_admin(self):
+        pharmacy_id = create_pharmacy_registration(
+            name="Admin Tenant Pharmacy", email="admin-tenant@example.com",
+            password=self.password,
+        )
+        admin_id = create_user(
+            "TenantLinkedAdmin", "admin", self.password, pharmacy_id=pharmacy_id,
+        )
+        conn = get_db_connection()
+        try:
+            admin = conn.execute(
+                'SELECT pharmacy_id, status FROM "user" WHERE id = ?', (admin_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNone(admin["pharmacy_id"])
+        self.assertEqual(admin["status"], "active")
+
+        # Simulate a legacy admin already linked to a pharmacy and marked
+        # suspended by an earlier version of tenant-status propagation.
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                'UPDATE "user" SET pharmacy_id = ?, status = ? WHERE id = ?',
+                (pharmacy_id, "suspended", admin_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertIsNone(login_status_block({
+            "role": "admin", "status": "suspended", "pharmacy_status": "suspended",
+        }))
+
     def test_rejected_application_cannot_sign_in(self):
         self.register_pharmacy()
         pharmacy = get_pharmacies_with_applicant()[0]

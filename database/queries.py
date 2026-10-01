@@ -302,8 +302,7 @@ def get_pending_pharmacy_count():
 
 def update_pharmacy_status(pharmacy_id, status, user_status=None, setup=False):
     """Sets a pharmacy's approval status. When user_status is given, every
-    account of that pharmacy is set to it at the same time - the admin's
-    Approve/Suspend/Reactivate controls stay in lock-step with the tenant.
+    non-admin account of that pharmacy is set to it at the same time.
 
     When setup=True the pharmacist accounts are also flagged to complete the
     forced profile setup (must_update_profile = 1) - used when an application
@@ -313,12 +312,12 @@ def update_pharmacy_status(pharmacy_id, status, user_status=None, setup=False):
         conn.execute("UPDATE pharmacy SET status = ? WHERE id = ?", (status, pharmacy_id))
         if user_status is not None:
             conn.execute(
-                'UPDATE "user" SET status = ? WHERE pharmacy_id = ?',
+                'UPDATE "user" SET status = ? WHERE pharmacy_id = ? AND role != \'admin\'',
                 (user_status, pharmacy_id),
             )
         if setup:
             conn.execute(
-                'UPDATE "user" SET must_update_profile = 1 WHERE pharmacy_id = ?',
+                'UPDATE "user" SET must_update_profile = 1 WHERE pharmacy_id = ? AND role != \'admin\'',
                 (pharmacy_id,),
             )
         conn.commit()
@@ -412,6 +411,11 @@ def login_status_block(user):
     The pharmacy tenant's status is the stronger signal and is checked first
     so a rejected or suspended pharmacy gets that message even when its
     applicant user account still carries a legacy 'pending' flag."""
+    # Platform admins are global accounts. Legacy installs may have attached
+    # one to a pharmacy, so tenant suspension must never lock out the admin.
+    if (user or {}).get('role') == 'admin':
+        return None
+
     status = (user or {}).get('status')
     pharmacy_status = (user or {}).get('pharmacy_status')
     if pharmacy_status == 'rejected':
@@ -1348,7 +1352,10 @@ def create_user(name, role, password, pharmacy_id=None):
 
     conn = get_db_connection()
     cur = conn.cursor()
-    if pharmacy_id is None:
+    # Admins are platform-wide and must not inherit a pharmacy's lifecycle.
+    if role == 'admin':
+        pharmacy_id = None
+    elif pharmacy_id is None:
         row = cur.execute(
             "SELECT id FROM pharmacy WHERE status = 'active' ORDER BY created_at ASC LIMIT 1"
         ).fetchone()

@@ -679,7 +679,7 @@ def unhandled_exception(e):
 
 APK_DIR = os.environ.get('PHARMATRACK_APK_DIR') or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'static', 'downloads')
-APK_FILENAME = 'pharmafinder-v1.0.2.apk'
+APK_FILENAME = 'pharmatrack-v1.0.2.apk'
 APK_VERSION = '1.0.2'
 
 
@@ -703,7 +703,7 @@ def apk_latest():
         APK_DIR, APK_FILENAME,
         as_attachment=True,
         mimetype='application/vnd.android.package-archive',
-        download_name=f'pharmafinder-v{APK_VERSION}.apk',
+        download_name=f'pharmatrack-v{APK_VERSION}.apk',
         max_age=0,  # clients must re-check: the file is replaced on release
     )
 
