@@ -162,6 +162,75 @@ Must **add**: `price_per_unit, price_per_packet, packet_size, unit_label, image_
 
 The customer app is login-free for browsing, so all discovery endpoints stay public (as today). Only inventory *management* keeps its `pharmacy`/`admin` JWT requirement. A `POST /auth/login` for the `user` role may be added later for personalized features — do **not** make discovery require it.
 
+### 4.6 Cameroon medicines law and this project's role
+
+PharmaTrack's customer mobile app is intended to help people find a medicine,
+see which active pharmacy reports it, view that pharmacy's listed price, and
+travel to the pharmacy. It is a discovery directory: it has no cart, checkout,
+payment, prescription upload, reservation, or medicine-delivery flow. The
+pharmacy remains responsible for confirming current availability, price, and
+whether a prescription or other dispensing condition applies.
+
+Relevant legal context:
+
+- **Pharmacy practice and advertising:** Cameroon Law No. 90/035 of 10 August
+  1990 regulates the profession of pharmacist. Article 19 says advertising
+  concerning medicines and pharmaceutical establishments is allowed only
+  under conditions set by the supervisory authority after consulting the
+  National Order of Pharmacists. Article 53 addresses the sale, display, or
+  distribution of medicines on public roads, fairs, and markets. Those rules
+  make it important to confirm whether a public digital directory showing
+  medicine names, pharmacy availability, and prices is permitted and under
+  what conditions. The fact that the app does not complete a sale does not by
+  itself establish an exemption.
+- **Controlled medicines:** Cameroon Law No. 97/019 of 7 August 1997 addresses
+  control of narcotic drugs, psychotropic substances, and precursors. The
+  Ministry of Public Health's National Committee for the Fight Against Drugs
+  describes both control and access to medicines containing narcotic or
+  psychotropic substances for medical purposes as policy concerns. A medicine
+  being visible in the directory must not imply that it can be dispensed
+  without meeting its applicable prescription, professional, and recordkeeping
+  requirements.
+- **Prices and public promotion:** because a public price comparison can look
+  promotional even when it is intended as consumer information, the app should
+  identify the pharmacy that supplied each price, show when it was last
+  updated if that data is available, and let the pharmacy confirm the current
+  price. Do not describe a displayed price as a guaranteed offer or completed
+  sale. Confirm the applicable price-display rules with the regulator and the
+  Pharmacists' Order.
+
+Implementation implications:
+
+- Public API responses may include medicine name, pharmacy identity, pharmacy-
+  supplied price, a Boolean `in_stock`, and the pharmacy-entered
+  `is_controlled` / `requires_prescription` flags. They must not expose exact
+  quantities, patient data, prescription records, or dispensing histories.
+- The mobile app labels controlled medicines and prescription-required items
+  and directs users to confirm dispensing requirements with the pharmacy. The
+  flags are entered by the pharmacy; the app does not determine the legal
+  classification of a product or authorize its supply.
+- A listing is not a prescription, clinical recommendation, authorization to
+  dispense, or guarantee that an item remains in stock. The pharmacy must
+  complete any required professional checks and lawful dispensing in person.
+- Before enabling public medicine names/prices or controlled-medicine listings
+  in production, PharmaTrack should obtain written guidance from MINSANTE/DPML
+  and the National Order of Pharmacists on digital medicine advertising,
+  pharmacy listings, price display, and controlled-medicine discoverability.
+  A disclaimer in the app is not a substitute for that guidance.
+
+Sources: [Cameroon Ministry of Public Health / DPML, Law No. 90/035 and related
+pharmacy legislation](https://www.dpml.cm/index.php/fr/publications/normes-et-legislation/etablissements-pharmaceutiques),
+[WHO CPCD record and PDF for Law No. 90/035 (Article 19 on advertising)](https://extranet.who.int/cpcd/health-legislation/loi-ndeg90-035-du-10-aout-1990-relative-lexercice-et-lorganisation-de-la),
+[MINSANTE / DPML public notice on medicine sales and distribution in public
+spaces](https://www.dpml.cm/index.php/fr/sinformer/actualite/annee-2019/communique-de-presse-sur-la-vente-illicite-des-medicaments-et-produits-pharmaceutiques-au-cameroun),
+[UNODC SHERLOC record for Cameroon Law No. 97-019 on narcotic and psychotropic
+substances](https://sherloc.unodc.org/cld/en/legislation/cmr/loi_no._97-019_du_7_aout_1997_relative_au_controle_des_stupefiants_des_substances_psychotropes_et_des_precurseurs_/chapitre_x/articles_87_91-97/loi_97-019_.html),
+[MINSANTE CNLD policy framework](https://dps.minsante.cm/cnld/).
+
+This section is a product-design summary, not a legal opinion. The cited laws
+and implementing rules should be checked with the competent Cameroonian
+authorities before public launch.
+
 ---
 
 ## 5. Required Modifications — PharmaTrack Web / Desktop App
