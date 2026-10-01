@@ -103,9 +103,14 @@ class ApiTestCase(unittest.TestCase):
         response = self.client.get("/api/v1/products", headers=public_headers)
         self.assertEqual(response.status_code, 200)
         products = response.get_json()["products"]
-        self.assertEqual([product["name"] for product in products], ["Normal Medicine"])
+        self.assertEqual(
+            [product["name"] for product in products],
+            ["Controlled Medicine", "Normal Medicine"],
+        )
         self.assertNotIn("current_stock", products[0])
         self.assertIn("in_stock", products[0])
+        controlled = next(p for p in products if p["name"] == "Controlled Medicine")
+        self.assertTrue(controlled["is_controlled"])
 
         response = self.client.get("/api/v1/products/not-a-real-product", headers=public_headers)
         self.assertEqual(response.status_code, 403)
@@ -230,7 +235,7 @@ class ApiTestCase(unittest.TestCase):
 
     def test_public_pharmacy_and_popular_endpoints(self):
         self.create_product(self.authorization_header("Pharmacist"), name="Amoxicillin", price_per_unit=250)
-        self.create_product(self.authorization_header("Pharmacist"), name="Controlled", is_controlled=True)
+        self.create_product(self.authorization_header("Pharmacist"), name="Controlled", is_controlled=True, price_per_unit=500)
 
         response = self.client.get("/api/v1/pharmacies")
         self.assertEqual(response.status_code, 200)
@@ -247,7 +252,9 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         names = [p["name"] for p in response.get_json()["products"]]
         self.assertIn("Amoxicillin", names)
-        self.assertNotIn("Controlled", names)
+        self.assertIn("Controlled", names)
+        controlled = next(p for p in response.get_json()["products"] if p["name"] == "Controlled")
+        self.assertTrue(controlled["is_controlled"])
 
         response = self.client.get("/api/v1/pharmacies/does-not-exist")
         self.assertEqual(response.status_code, 404)
@@ -260,10 +267,18 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(popular[0]["cheapest_price"], 250)
         self.assertEqual(popular[0]["pharmacy_count"], 1)
         self.assertTrue(popular[0]["any_in_stock"])
+        controlled_popular = next(p for p in popular if p["name"] == "Controlled")
+        self.assertTrue(controlled_popular["is_controlled"])
 
         response = self.client.get("/api/v1/products/search?q=Amoxi")
         self.assertEqual(response.status_code, 200)
         self.assertEqual([p["name"] for p in response.get_json()["products"]], ["Amoxicillin"])
+
+        response = self.client.get("/api/v1/products/search?q=Controlled")
+        self.assertEqual(response.status_code, 200)
+        controlled_result = response.get_json()["products"][0]
+        self.assertEqual(controlled_result["name"], "Controlled")
+        self.assertTrue(controlled_result["is_controlled"])
 
         response = self.client.get("/api/v1/products/search?q=")
         self.assertEqual(response.status_code, 200)
@@ -375,4 +390,3 @@ class ApiTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-

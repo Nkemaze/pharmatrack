@@ -143,15 +143,15 @@ Add a `pharmacy_id` claim to the JWT, alongside `role` and `name`.
 |---|---|---|---|
 | `GET` | `/pharmacies` | List active pharmacies | `id, name, address, city, phone, emergency_phone, latitude, longitude, hours{weekday_open, weekday_close, weekend_open, weekend_close}, status` |
 | `GET` | `/pharmacies/<id>` | One pharmacy (404 if not active) | Same fields |
-| `GET` | `/pharmacies/<id>/products` | One pharmacy's safe inventory | `id, name, category, strength, dosage_form, requires_prescription, price_per_unit, price_per_packet, packet_size, unit_label, image_url, in_stock` |
+| `GET` | `/pharmacies/<id>/products` | One pharmacy's public discovery inventory | `id, name, category, strength, dosage_form, requires_prescription, is_controlled, price_per_unit, price_per_packet, packet_size, unit_label, image_url, in_stock` |
 | `GET` | `/products/search?q=` | Cross-pharmacy drug search | Grouped result: `{pharmacy: {...}, drugs: [...]}` — pharmacy info + matching drugs with prices + `in_stock` |
-| `GET` | `/products/popular` | Popular medicines aggregation | `name, form_label, cheapest_price, pharmacy_count, any_in_stock` |
+| `GET` | `/products/popular` | Popular medicines aggregation | `name, form_label, cheapest_price, pharmacy_count, any_in_stock, is_controlled, requires_prescription` |
 
 ### 4.3 Extend the existing public `GET /products`
 
 Currently returns only: `id, name, category, strength, dosage_form, requires_prescription, in_stock`.
 
-Must **add**: `price_per_unit, price_per_packet, packet_size, unit_label, image_url, city, distance_km` (optional), and the owning pharmacy's `id`/`name`. Controlled products remain excluded (existing rule). Exact stock numbers remain hidden publicly.
+Must **add**: `price_per_unit, price_per_packet, packet_size, unit_label, image_url, is_controlled, city, distance_km` (optional), and the owning pharmacy's `id`/`name`. Controlled status and prescription requirements are included as discovery labels; exact stock numbers remain hidden publicly.
 
 ### 4.4 Add helper endpoints for the app's needs
 

@@ -20,9 +20,9 @@ from database.queries import (
 @jwt_required(optional=True)
 def list_products():
     """
-    No token: public, safe view - no exact stock counts, no controlled
-    substances. This is what the mobile app's customers use, with no
-    login required at all.
+    No token: public, safe view - no exact stock counts. Controlled status
+    and prescription requirements are included as informational labels for
+    customer medicine discovery. This is what the mobile app uses.
 
     Valid pharmacy/admin token: full detailed view, same as the web app,
     scoped to the token's pharmacy (admin also sees only their own

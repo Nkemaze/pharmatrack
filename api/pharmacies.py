@@ -1,8 +1,8 @@
 """Public pharmacy-endpoint routes for the customer-facing API.
 
 These are deliberately unauthenticated and safe: they only ever expose
-active pharmacies and public, non-controlled product listings, never
-exact stock quantities or admin data.
+active pharmacies and public product listings, including informational
+controlled-medicine flags but never exact stock quantities or admin data.
 """
 
 from flask import jsonify, request

@@ -510,10 +510,9 @@ def get_product_list(search=None, pharmacy_id=None):
 def get_public_inventory(search=None, pharmacy_id=None):
     """Returns safe product information for the public/read-only API.
 
-    Controlled substances and exact stock quantities are deliberately
-    excluded - only whether a product is in stock at all. Keep this
-    separate from get_product_list so callers cannot accidentally expose
-    restricted fields by filtering a richer response.
+    Controlled status and prescription requirement are disclosed as labels
+    for medicine discovery. Exact stock quantities and private records are
+    never exposed; only whether a product is in stock is returned.
 
     Optionally scoped to one pharmacy; otherwise spans every active tenant.
     """
@@ -522,14 +521,15 @@ def get_public_inventory(search=None, pharmacy_id=None):
     base_query = """
         SELECT p.id, p.pharmacy_id, ph.name AS pharmacy_name,
                p.name, p.category, p.strength, p.dosage_form,
-               p.requires_prescription, p.price_per_unit, p.price_per_packet,
+               p.requires_prescription, p.is_controlled,
+               p.price_per_unit, p.price_per_packet,
                p.packet_size, p.unit_label, p.image_url,
                COALESCE(SUM(sm.quantity), 0) AS current_stock
         FROM product p
         JOIN pharmacy ph ON ph.id = p.pharmacy_id
         LEFT JOIN product_batch pb ON pb.product_id = p.id
         LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
-        WHERE p.is_controlled = 0 AND ph.status = 'active'
+        WHERE ph.status = 'active'
     """
     filters = []
     params = ()
@@ -555,6 +555,7 @@ def get_public_inventory(search=None, pharmacy_id=None):
             "strength": row["strength"] or "—",
             "dosage_form": row["dosage_form"] or "—",
             "requires_prescription": bool(row["requires_prescription"]),
+            "is_controlled": bool(row["is_controlled"]),
             "price_per_unit": row["price_per_unit"],
             "price_per_packet": row["price_per_packet"],
             "packet_size": row["packet_size"],
@@ -570,21 +571,24 @@ def get_popular_products(limit=50):
     """An aggregate view across active pharmacies, powering the customer
     app's 'Popular Medicines' list: for each drug name, the cheapest unit
     price available, how many pharmacies carry it, and whether any has it
-    in stock. Controlled substances are excluded."""
+    in stock. Controlled status is returned for a clear public warning."""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
         SELECT sq.name, MIN(sq.price_per_unit) AS cheapest_price,
                COUNT(DISTINCT sq.pharmacy_id) AS pharmacy_count,
-               MAX(sq.in_stock_flag) AS any_in_stock
+               MAX(sq.in_stock_flag) AS any_in_stock,
+               MAX(sq.is_controlled) AS is_controlled,
+               MAX(sq.requires_prescription) AS requires_prescription
         FROM (
             SELECT p.name, p.price_per_unit, p.pharmacy_id,
+                   p.is_controlled, p.requires_prescription,
                    CASE WHEN COALESCE(SUM(sm.quantity), 0) > 0 THEN 1 ELSE 0 END AS in_stock_flag
             FROM product p
             JOIN pharmacy ph ON ph.id = p.pharmacy_id
             LEFT JOIN product_batch pb ON pb.product_id = p.id
             LEFT JOIN stock_movement sm ON sm.product_batch_id = pb.id
-            WHERE p.is_controlled = 0 AND ph.status = 'active'
+            WHERE ph.status = 'active'
               AND p.price_per_unit IS NOT NULL
             GROUP BY p.id
         ) sq
@@ -601,6 +605,8 @@ def get_popular_products(limit=50):
             "cheapest_price": r["cheapest_price"],
             "pharmacy_count": r["pharmacy_count"],
             "any_in_stock": bool(r["any_in_stock"]),
+            "is_controlled": bool(r["is_controlled"]),
+            "requires_prescription": bool(r["requires_prescription"]),
         }
         for r in rows
     ]
